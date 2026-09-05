@@ -4,9 +4,7 @@ Backend do VanGo, um aplicativo mobile em Flutter para gestão de transporte esc
 
 ## Status do repositório
 
-O projeto está na fase de arquitetura. Este repositório contém a visão do produto, o plano técnico e as diretrizes de desenvolvimento. Ainda não há código executável, migrações, Edge Functions ou testes.
-
-Nenhuma funcionalidade descrita abaixo deve ser tratada como implementada.
+O projeto possui um ambiente Supabase local reproduzível, uma migration inicial do schema privado e um teste de infraestrutura. As entities, policies e rotas de domínio ainda não foram implementadas.
 
 ## Objetivo do MVP
 
