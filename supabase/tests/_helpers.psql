@@ -1,0 +1,67 @@
+create or replace function pg_temp.create_test_user(
+  p_id uuid,
+  p_email text,
+  p_confirmed boolean default true
+) returns void
+language sql
+as $$
+  insert into auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  ) values (
+    '00000000-0000-0000-0000-000000000000',
+    p_id,
+    'authenticated',
+    'authenticated',
+    p_email,
+    extensions.crypt('local-test-password', extensions.gen_salt('bf')),
+    case when p_confirmed then now() else null end,
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{}'::jsonb,
+    now(),
+    now()
+  );
+$$;
+
+create or replace function pg_temp.seed_foundation()
+returns void
+language plpgsql
+as $$
+begin
+  perform pg_temp.create_test_user('40000000-0000-0000-0000-000000000001', 'owner-a1@example.test');
+  perform pg_temp.create_test_user('40000000-0000-0000-0000-000000000002', 'owner-a2@example.test');
+  perform pg_temp.create_test_user('40000000-0000-0000-0000-000000000003', 'driver-a@example.test');
+  perform pg_temp.create_test_user('40000000-0000-0000-0000-000000000004', 'guardian-a@example.test');
+  perform pg_temp.create_test_user('40000000-0000-0000-0000-000000000005', 'owner-b@example.test');
+
+  insert into public.fleets (id, name, slug, created_by)
+  values
+    ('41000000-0000-0000-0000-000000000001', 'Fleet A', 'fleet-a', '40000000-0000-0000-0000-000000000001'),
+    ('41000000-0000-0000-0000-000000000002', 'Fleet B', 'fleet-b', '40000000-0000-0000-0000-000000000005');
+
+  insert into public.fleet_memberships (id, fleet_id, user_id)
+  values
+    ('42000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001'),
+    ('42000000-0000-0000-0000-000000000002', '41000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000002'),
+    ('42000000-0000-0000-0000-000000000003', '41000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000003'),
+    ('42000000-0000-0000-0000-000000000004', '41000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000004'),
+    ('42000000-0000-0000-0000-000000000005', '41000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000005');
+
+  insert into public.fleet_membership_roles (membership_id, role)
+  values
+    ('42000000-0000-0000-0000-000000000001', 'owner'),
+    ('42000000-0000-0000-0000-000000000002', 'owner'),
+    ('42000000-0000-0000-0000-000000000003', 'driver'),
+    ('42000000-0000-0000-0000-000000000004', 'guardian'),
+    ('42000000-0000-0000-0000-000000000005', 'owner');
+end;
+$$;

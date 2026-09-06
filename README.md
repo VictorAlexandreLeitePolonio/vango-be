@@ -4,7 +4,7 @@ Backend do VanGo, um aplicativo mobile em Flutter para gestão de transporte esc
 
 ## Status do repositório
 
-O projeto possui um ambiente Supabase local reproduzível, uma migration inicial do schema privado e um teste de infraestrutura. As entities, policies e rotas de domínio ainda não foram implementadas.
+O projeto possui um ambiente Supabase local reproduzível e a fundação multi-tenant do Ciclo 1 implementada localmente. O mapa e os domínios operacionais continuam planejados para ciclos posteriores.
 
 ## Objetivo do MVP
 
@@ -135,7 +135,7 @@ Regras centrais:
 
 ## Etapas planejadas
 
-1. **Fundação multi-tenant:** Supabase local, Auth, perfis, frotas, associações, múltiplos papéis, RLS e auditoria.
+1. **Fundação multi-tenant:** Supabase local, Auth, perfis, frotas, associações, múltiplos papéis, RLS e auditoria — concluída localmente no Ciclo 1.
 2. **Marketplace e vínculos:** catálogo de escolas, cidades atendidas, alunos, responsáveis, solicitações, preferências e lista de espera.
 3. **Frota e planejamento:** vans, capacidade, motoristas, rotas, escolas ordenadas, agendas e atribuições.
 4. **Operação diária:** dias de serviço, viagens, confirmações, substituições e presença.
@@ -148,3 +148,5 @@ Cada etapa terá especificação e plano próprios. A implementação começará
 
 - [Plano técnico e modelo de domínio](./be-tech-plan.md)
 - [Diretrizes de desenvolvimento](./CONTRIBUTING.md)
+- [Entregas por ciclo](./deliverables.md)
+- [Plano de implementação do Ciclo 1](./docs/superpowers/plans/2026-09-05-ciclo-1-fundacao-multitenant.md)
