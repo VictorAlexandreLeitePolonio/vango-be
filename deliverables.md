@@ -16,7 +16,7 @@ Este arquivo registra somente funcionalidades, arquivos, migrations e validaçõ
 | --- | --- | --- | --- |
 | 0 | Preparação local | Concluído | 2026-09-05 |
 | 1 | Fundação multi-tenant | Concluído | 2026-09-05 |
-| 2 | Marketplace e vínculos | Não iniciado | — |
+| 2 | Marketplace e vínculos | Concluído localmente | 2026-09-06 |
 | 3 | Frota e planejamento | Não iniciado | — |
 | 4 | Operação diária | Não iniciado | — |
 | 5 | Notificações | Não iniciado | — |
@@ -100,9 +100,40 @@ Este arquivo registra somente funcionalidades, arquivos, migrations e validaçõ
 
 ## Ciclo 2 — Marketplace e vínculos
 
-**Status:** Não iniciado
+**Status:** Concluído localmente
 
-**Registro:** Nenhuma entrega de implementação registrada.
+**Concluído em:** 2026-09-06
+
+**Escopo entregue:** catálogo global vazio, cobertura comercial por cidade e instituição, cadastro de menores e adultos, responsáveis principal/secundários, buscas públicas, solicitações do marketplace, convites com token hasheado, vínculo direto por convite, aprovação/rejeição/cancelamento/encerramento, fontes de papéis derivados, RLS e auditoria sanitizada.
+
+**Corte preservado:** nenhuma escola ou faculdade real foi inserida; não há importador, API externa, Edge Function, envio de e-mail, código Flutter, van, motorista, rota, capacidade, disponibilidade, preferência ou lista de espera.
+
+**Artefatos:**
+
+- migrations `20260906201503_create_cycle_2_schema` e `20260906201646_create_cycle_2_authorization`;
+- migrations `20260906201925_create_marketplace_functions`, `20260906210854_create_student_functions`, `20260906211059_create_guardian_functions`, `20260906211326_create_join_request_functions`, `20260906211528_create_enrollment_functions` e `20260906211805_create_fleet_invitation_functions`;
+- `supabase/tests/database/008_cycle_2_schema.test.sql` a `016_cycle_2_audit_privacy.test.sql`;
+- `supabase/tests/_helpers.psql`, com fixtures fictícias transacionais;
+- `README.md`, `be-tech-plan.md` e esta documentação atualizados para o corte executado.
+
+**Entities:** `schools`, `fleet_service_cities`, `fleet_service_schools`, `students`, `student_guardians`, `student_guardian_invitations`, `fleet_invitations`, `fleet_join_requests`, `fleet_enrollments` e `fleet_membership_role_sources`. O catálogo `schools` permanece vazio após o reset e o seed.
+
+**RPCs:** `search_schools`, `search_marketplace`, `list_fleet_join_requests`, `get_fleet_invitation`, criação/edição de alunos, convites de responsáveis e frota, submissão/decisão/cancelamento de solicitações, aceitação/recusa/cancelamento de convites e encerramento de vínculos. Funções críticas usam `security definer`, `search_path` vazio, validação de e-mail confirmado, locks e códigos de erro `PGRST`.
+
+**Segurança:** tabelas transacionais não aceitam escrita direta por `anon`/`authenticated`; owners administram somente a cobertura da própria frota; projeções de owner ocultam endereço após o fim da finalidade; tokens são armazenados apenas como SHA-256; papéis derivados usam fontes para preservar papéis manuais e outros dependentes; auditoria não registra PII.
+
+**Validações executadas:**
+
+- `supabase db reset`: PASS;
+- `supabase test db`: 17 arquivos, 176 testes pgTAP, PASS;
+- `supabase migration list --local`: 17 migrations locais em ordem;
+- `git diff --check`: executado após as alterações;
+- `supabase db lint --local --level warning --fail-on error`: PASS, sem erros de schema;
+- `supabase db advisors --local --type all --level warn --fail-on error`: PASS, sem achados de nível warn/error; a execução em `level info` retornou apenas recomendações informativas de índices e RLS intencionalmente sem policy para tabelas acessadas por RPC;
+- inspeção de grants/RLS/funções privilegiadas: PASS, RLS habilitada nas dez tabelas, escrita transacional direta negada e `security definer` com `search_path` vazio;
+- `software-quality-gate`: PASS; revisão somente leitura, mutation analysis por raciocínio das regras críticas, sem arquivos gerados ou alteração de configuração.
+
+**Pendências futuras:** inserir manualmente o catálogo regional de instituições ativas e campi presenciais de Itapetininga, Sorocaba, São Miguel Arcanjo, Tatuí, Capão Bonito e Pilar do Sul; decidir uma fonte externa somente se a carga manual deixar de ser suficiente.
 
 ## Ciclo 3 — Frota e planejamento
 

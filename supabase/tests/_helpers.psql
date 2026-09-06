@@ -65,3 +65,16 @@ begin
     ('42000000-0000-0000-0000-000000000005', 'owner');
 end;
 $$;
+
+create or replace function pg_temp.seed_cycle_2_users()
+returns void
+language plpgsql
+as $$
+begin
+  perform pg_temp.create_test_user('60000000-0000-0000-0000-000000000001', 'primary@example.test');
+  perform pg_temp.create_test_user('60000000-0000-0000-0000-000000000002', 'secondary@example.test');
+  perform pg_temp.create_test_user('60000000-0000-0000-0000-000000000003', 'adult@example.test');
+  perform pg_temp.create_test_user('60000000-0000-0000-0000-000000000004', 'unconfirmed@example.test', false);
+  perform pg_temp.create_test_user('60000000-0000-0000-0000-000000000005', 'owner-cycle2@example.test');
+end;
+$$;

@@ -4,7 +4,9 @@ Backend do VanGo, um aplicativo mobile em Flutter para gestão de transporte esc
 
 ## Status do repositório
 
-O projeto possui um ambiente Supabase local reproduzível e a fundação multi-tenant do Ciclo 1 implementada localmente. O mapa e os domínios operacionais continuam planejados para ciclos posteriores.
+O projeto possui um ambiente Supabase local reproduzível e os Ciclos 1 e 2 implementados localmente. O catálogo de instituições permanece vazio por decisão de escopo; mapa e domínios operacionais continuam planejados para ciclos posteriores.
+
+O Ciclo 2 entrega schema, RLS, buscas públicas e RPCs para alunos, responsáveis, solicitações, convites e vínculos. Não há importador, integração externa, carga de escolas reais, envio de e-mail ou código Flutter.
 
 ## Objetivo do MVP
 
@@ -42,13 +44,15 @@ O Flutter pode consultar e alterar dados simples protegidos por RLS. Regras como
 
 ## Fluxos principais
 
-### Marketplace
+### Marketplace e vínculos
 
-Frotas publicadas aparecem em uma pesquisa por cidades atendidas, escola, turno, disponibilidade e distância aproximada. Somente frotas são públicas; não existe diretório público de responsáveis ou alunos.
+Frotas publicadas aparecem por cidade e instituição coberta. A busca pública usa `search_schools` e `search_marketplace`; somente campos institucionais e comerciais sanitizados são retornados.
 
-O usuário informa o endereço completo de forma privada. O backend mostra vans compatíveis com dados resumidos do veículo e do motorista, partida e janela estimada de busca. O solicitante ordena até três preferências. O dono decide a van final e pode escolher outra opção compatível.
+O responsável principal cria menores e o aluno adulto cria o próprio registro. Solicitações guardam um snapshot privado do endereço, exigem escola ativa/coberta e cidade atendida, e aguardam aprovação do owner. A aprovação cria o vínculo na mesma transação.
 
-Uma frota pode atender várias cidades. Uma rota pode partir da cidade A, buscar um aluno na cidade B e chegar a uma escola na cidade C.
+Owners também podem convidar responsáveis ou alunos adultos. O Flutter preserva o token no callback de cadastro/login; o backend guarda somente o hash SHA-256 e aceita o convite apenas para o mesmo e-mail confirmado. Responsáveis secundários recebem acesso derivado aos vínculos ativos do dependente.
+
+O catálogo `schools` não contém dados reais neste ciclo. A carga regional futura será inserida diretamente no Supabase, sem importador ou API definida.
 
 ### Frota e rotas
 
@@ -56,7 +60,7 @@ O dono cadastra vans, define a capacidade, configura rotas e escolhe motorista e
 
 Cada `route` representa um único sentido: ida ou volta. Rotas opostas podem formar um par. Uma rota contém escolas ordenadas por uma tabela relacional; o dono define a ordem das escolas. O sistema otimiza as paradas residenciais respeitando essa ordem e os horários.
 
-As escolas virão de um catálogo global abastecido por uma API externa. O dono escolhe opções existentes e não cadastra escolas manualmente. A fonte externa será escolhida antes do ciclo de marketplace.
+As escolas vêm de um catálogo global vazio neste ciclo. Usuários não escrevem diretamente no catálogo; a carga futura será manual no Supabase. A fonte externa, se necessária, será decidida antes de qualquer importação.
 
 ### Agenda, viagens e confirmações
 
@@ -136,7 +140,7 @@ Regras centrais:
 ## Etapas planejadas
 
 1. **Fundação multi-tenant:** Supabase local, Auth, perfis, frotas, associações, múltiplos papéis, RLS e auditoria — concluída localmente no Ciclo 1.
-2. **Marketplace e vínculos:** catálogo de escolas, cidades atendidas, alunos, responsáveis, solicitações, preferências e lista de espera.
+2. **Marketplace e vínculos:** catálogo vazio, cobertura comercial, alunos, responsáveis, solicitações, convites, vínculos, privacidade e auditoria — concluído localmente no Ciclo 2. Preferências, capacidade e lista de espera ficaram fora do corte.
 3. **Frota e planejamento:** vans, capacidade, motoristas, rotas, escolas ordenadas, agendas e atribuições.
 4. **Operação diária:** dias de serviço, viagens, confirmações, substituições e presença.
 5. **Rastreamento e ocorrências:** Realtime privado, GPS, visibilidade segura, desvios, atrasos e retenção.
@@ -150,3 +154,5 @@ Cada etapa terá especificação e plano próprios. A implementação começará
 - [Diretrizes de desenvolvimento](./CONTRIBUTING.md)
 - [Entregas por ciclo](./deliverables.md)
 - [Plano de implementação do Ciclo 1](./docs/superpowers/plans/2026-09-05-ciclo-1-fundacao-multitenant.md)
+- [Spec do Ciclo 2](./docs/superpowers/specs/2026-09-06-ciclo-2-marketplace-vinculos-design.md)
+- [Plano de implementação do Ciclo 2](./docs/superpowers/plans/2026-09-06-ciclo-2-marketplace-vinculos.md)

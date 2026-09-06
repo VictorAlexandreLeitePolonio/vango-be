@@ -2,7 +2,7 @@
 
 ## 1. Estado e finalidade
 
-Este documento registra a arquitetura aprovada para o MVP do VanGo. O projeto ainda não possui implementação. Nomes de tabelas, fluxos e regras abaixo orientam as próximas especificações; cada etapa será implementada e validada separadamente.
+Este documento registra a arquitetura aprovada para o MVP do VanGo. Os Ciclos 0, 1 e 2 estão implementados localmente no Supabase; vans, rotas, operação, mapa e notificações continuam planejados para ciclos posteriores.
 
 O aplicativo será mobile, desenvolvido em Flutter. Este repositório concentrará todo o backend no Supabase. Não haverá API Node.js, JWT próprio, `bcrypt` ou servidor Socket.io no MVP.
 
@@ -212,13 +212,13 @@ O aluno adulto possui `profile`, associação com papel `student` e um registro 
 
 ## 6. Modelo de domínio planejado
 
-As tabelas desta seção pertencem aos ciclos posteriores. Os campos listam o contrato mínimo conhecido; cada ciclo detalhará constraints e índices antes da implementação.
+Esta seção combina o contrato entregue no Ciclo 2 com entidades planejadas para ciclos posteriores. Cada ciclo detalha constraints e índices antes da implementação.
 
 ### 6.1 Localização e catálogo público
 
 `fleet_service_cities` liga uma frota às cidades usadas na descoberta do marketplace. Cidade é um filtro comercial, não uma fronteira operacional. Uma rota pode atravessar várias cidades.
 
-`schools` forma um catálogo global preenchido por uma API externa:
+`schools` forma um catálogo global, vazio no Ciclo 2 e preparado para carga manual futura:
 
 - `id` interno;
 - `provider` e `external_id` para idempotência;
@@ -227,9 +227,9 @@ As tabelas desta seção pertencem aos ciclos posteriores. Os campos listam o co
 - cidade, latitude e longitude;
 - metadados de origem e data da última sincronização.
 
-O dono não cadastra escolas manualmente. A escolha da fonte externa foi adiada de forma explícita. Antes do ciclo de marketplace, uma pesquisa deverá comparar cobertura de escolas e faculdades no Brasil, licença, coordenadas, limites de uso, estabilidade e custo.
+Usuários autenticados não escrevem diretamente no catálogo. A carga inicial pretendida para Itapetininga, Sorocaba, São Miguel Arcanjo, Tatuí, Capão Bonito e Pilar do Sul será feita diretamente no Supabase em trabalho futuro. Nenhum importador ou provedor externo foi fixado.
 
-O marketplace expõe uma projeção sanitizada das frotas publicadas. Ele permite filtrar por cidade, escola, turno, disponibilidade aproximada e distância. Nenhuma consulta pública expõe usuários, alunos, endereços residenciais, rotas exatas ou localização ao vivo.
+O marketplace expõe uma projeção sanitizada das frotas publicadas e filtra por cidade e instituição no Ciclo 2. Turno, disponibilidade, distância e operação ficam para ciclos posteriores. Nenhuma consulta pública expõe usuários, alunos, endereços residenciais, rotas exatas ou localização ao vivo.
 
 ### 6.2 Alunos e responsáveis
 
@@ -435,14 +435,11 @@ Uma Edge Function envia push pelo provedor escolhido. A chave administrativa e a
 
 ### 7.2 Descoberta e solicitação
 
-1. Responsável ou aluno adulto filtra frotas por cidade, escola, turno e disponibilidade.
+1. Responsável ou aluno adulto filtra frotas por cidade e escola coberta.
 2. O usuário informa o endereço completo em área privada.
-3. O backend filtra vans por frota, escola, turno, agenda e vaga.
-4. O usuário visualiza informações resumidas do motorista, van, partida e busca estimada.
-5. O usuário ordena até três preferências.
-6. O dono aprova, rejeita ou coloca o pedido em espera.
-7. Ao aprovar, o dono pode escolher qualquer van compatível.
-8. O backend cria o vínculo e a programação sem ultrapassar a capacidade.
+3. O backend grava um snapshot do endereço na solicitação.
+4. O dono aprova ou rejeita a solicitação; não há lista de espera neste ciclo.
+5. Ao aprovar, o backend cria o vínculo, associa os papéis derivados e audita a transação.
 
 Frotas são públicas; usuários não. O dono vê somente pessoas que solicitaram acesso ou contatos que ele convidou.
 
@@ -495,7 +492,15 @@ Helpers privados evitam recursão entre policies de associação e papéis. Cham
 
 ### 8.3 RPCs críticas previstas
 
-Os nomes finais serão definidos em cada ciclo. As operações mínimas incluem:
+No Ciclo 2, as RPCs públicas incluem:
+
+- `search_schools`, `search_marketplace`, `list_fleet_join_requests` e `get_fleet_invitation`;
+- `create_minor_student`, `create_adult_student` e `update_student`;
+- convites de responsáveis e de frotas;
+- submissão, cancelamento e decisão de solicitações;
+- aceitação/recusa/cancelamento de convites e encerramento de vínculos.
+
+As operações posteriores continuam previstas:
 
 - criar frota e primeiro dono;
 - alterar papéis sem remover o último dono;
@@ -544,7 +549,7 @@ O backend retorna a menor projeção necessária para cada papel. Dados de menor
 O projeto será dividido em seis ciclos:
 
 1. **Fundação multi-tenant:** ambiente Supabase local, Auth, `profiles`, `fleets`, associações, papéis, RLS e auditoria.
-2. **Marketplace e vínculos:** catálogo de escolas, cidades, alunos, responsáveis, solicitações, convites, preferências e lista de espera.
+2. **Marketplace e vínculos:** catálogo vazio, cidades e instituições cobertas, alunos, responsáveis, solicitações, convites, vínculos, RLS e auditoria. Preferências, capacidade e lista de espera ficaram fora do corte.
 3. **Frota e planejamento:** vans, capacidade, motoristas, rotas, pares de sentido, escolas, agendas e alunos programados.
 4. **Operação diária:** `service_days`, `trips`, passageiros, confirmações, substituições e estados operacionais.
 5. **Rastreamento e ocorrências:** Realtime privado, GPS, projeções seguras, incidentes e retenção.
@@ -552,7 +557,7 @@ O projeto será dividido em seis ciclos:
 
 Cada ciclo terá uma especificação aprovada, plano de implementação, migrações, RLS e testes próprios. Nenhum ciclo posterior deve ampliar silenciosamente o escopo do anterior.
 
-## 12. Fundação: primeiro ciclo aprovado
+## 12. Ciclos implementados localmente
 
 O primeiro ciclo entrega somente:
 
@@ -567,7 +572,7 @@ O primeiro ciclo entrega somente:
 - dados fictícios locais;
 - documentação coerente.
 
-Marketplace, escolas, alunos, vans, rotas, viagens, Realtime, roteirização e push ficam fora dessa implementação.
+O Ciclo 2 acrescenta `schools`, coberturas comerciais, `students`, `student_guardians`, convites, solicitações, vínculos e fontes de papéis, com RLS, RPCs e auditoria sanitizada. O catálogo permanece sem dados reais e não há importador.
 
 Testes mínimos da fundação:
 
