@@ -1,86 +1,158 @@
-# VanGo Backend (BE)
+# VanGo Backend
 
-Guia rápido do repositório VanGo Backend, baseado na documentação vigente no diretório.
+Backend do VanGo, um aplicativo mobile em Flutter para gestão de transporte escolar e universitário. O MVP usa o Supabase como backend completo, sem servidor Node.js próprio.
 
-## Sobre o projeto
+## Status do repositório
 
-Este repositório concentra a especificação técnica e diretrizes de engenharia para a API backend do **VanGo**.
+O projeto possui um ambiente Supabase local reproduzível e os Ciclos 1 e 2 implementados localmente. O catálogo de instituições permanece vazio por decisão de escopo; mapa e domínios operacionais continuam planejados para ciclos posteriores.
 
-- O backend é responsável por autenticação/autorização, regras de negócio e trilha em tempo real.
-- O **Supabase** é usado como banco PostgreSQL + storage estático.
-- O frontend (Flutter) não depende diretamente do Supabase para lógica de negócio; ele consome um **endpoint único** do Node.js.
+O Ciclo 2 entrega schema, RLS, buscas públicas e RPCs para alunos, responsáveis, solicitações, convites e vínculos. Não há importador, integração externa, carga de escolas reais, envio de e-mail ou código Flutter.
 
-## Arquitetura definida
+## Objetivo do MVP
 
-- **Node.js + TypeScript** como API principal.
-- **Framework sugerido**: Express ou Fastify.
-- **Autenticação**: JWT com `bcrypt` para hash de senha e middleware de validação.
-- **Tempo real**: Socket.io para rastreamento de localização.
-- **Mapas/Roteirização**: integração com Mapbox via serviço server-side.
-- **Banco**: PostgreSQL no Supabase, controlado por migrações SQL no repositório.
+O VanGo conecta donos de frotas, motoristas, responsáveis e alunos adultos. O sistema permite descobrir frotas, solicitar vínculo, organizar vans e rotas, confirmar viagens, acompanhar a van durante uma viagem ativa e receber notificações operacionais.
 
-## Diretrizes de engenharia (resumo)
+Pagamentos, mensalidades, contratos, comissões e avaliações não fazem parte do MVP.
 
-As regras abaixo são obrigatórias e já estão documentadas em `CONTRIBUTING.md`:
+## Perfis e papéis
 
-- Código limpo, simples e sem duplicação (Clean Code, KISS, DRY, SOLID).
-- Camadas de arquitetura separadas por responsabilidade (sem acoplamento de UI com rede/banco).
-- Commit semântico (`feat`, `fix`, `test`, `refactor`, `docs`).
-- Erros de API com respostas padronizadas, por exemplo: `401`, `400`, `500` com payload `{ "error": "..." }`.
-- Testes com foco em TDD (Red-Green-Refactor).
-- Fluxo Git com branch `main` protegido e abertura de PR para integração.
+Uma conta pode acumular papéis. Os papéis são contextuais à frota, que representa o tenant:
 
-## Modelagem inicial do banco (PostgreSQL)
+- `owner`: administra somente as frotas às quais pertence como dono;
+- `driver`: opera somente as vans e viagens atribuídas;
+- `guardian`: gerencia alunos menores vinculados à conta;
+- `student`: representa apenas aluno adulto autenticado.
 
-Esquemas definidos no plano técnico:
+Alunos menores não possuem login. Eles são dependentes gerenciados por um ou mais responsáveis. Um responsável principal edita os dados do aluno e administra outros responsáveis; responsáveis secundários acompanham e confirmam viagens.
 
-- `public.profiles`
-  - `id`, `email` (único), `password_hash`, `name`, `phone`, `role`, `created_at`, `updated_at`
-- `public.veiculos`
-  - `id`, `plate` (único), `model`, `capacity`, `owner_id`
-- `public.turmas`
-  - `id`, `name`, `invite_code` (único), `driver_id`, `vehicle_id`, `created_at`
-- `public.estudantes_turma`
-  - `id`, `name`, `turma_id`, `responsavel_id`, `address_text`, `address_lat`, `address_lng`, `status_presenca_padrao`, `created_at`
-- `public.rotas`
-  - `id`, `turma_id`, `status`, `started_at`, `ended_at`, `optimized_path`, `created_at`
-- `public.presencas_rota`
-  - `id`, `rota_id`, `estudante_id`, `status`, `updated_at`
-- `public.historico_geolocalizacao`
-  - `id`, `rota_id`, `lat`, `lng`, `speed`, `created_at`
+O mesmo usuário pode ser dono na Frota A, motorista na Frota B e responsável por um aluno. O backend sempre valida o papel dentro do `fleet_id` informado.
 
-Observação: as decisões incluem `FOREIGN KEY` com ações explícitas (`ON DELETE CASCADE`/`SET NULL`) e segurança de dados com RLS para novas tabelas.
+## Arquitetura aprovada
 
-## Contrato de autenticação (proposto)
+O backend combina recursos nativos do Supabase:
 
-- `POST /auth/register`
-  - Cria perfil no PostgreSQL após hash da senha (`bcrypt`).
-- `POST /auth/login`
-  - Valida credenciais e retorna JWT.
-- Middleware `checkAuth`
-  - Valida token JWT e injeta `req.user`.
+- **Supabase Auth:** cadastro por e-mail e senha, confirmação de e-mail e recuperação de senha;
+- **PostgreSQL:** dados relacionais, integridade, transações e histórico;
+- **Row Level Security:** isolamento entre frotas e proteção dos dados pessoais;
+- **Database Functions/RPC:** operações transacionais e regras críticas;
+- **Realtime Broadcast:** localização da van em canais privados por viagem;
+- **Edge Functions:** roteirização, geocodificação, push e integrações externas;
+- **Storage:** avatares, logos e arquivos futuros;
+- **Cron:** geração de viagens, fechamento de confirmações e expiração do GPS bruto.
 
-## Tempo real (Sockets)
+O Flutter pode consultar e alterar dados simples protegidos por RLS. Regras como aprovar um vínculo, reservar vaga, trocar motorista ou iniciar uma viagem passam por RPC. Integrações e segredos ficam nas Edge Functions.
 
-- Handshake protegido por JWT.
-- Salas de rota (`route:{rotaId}`): clientes da rota entram em sala para receber atualizações.
-- Motorista envia `send-location`; servidor valida permissão e retransmite `location-update` para a sala.
-- Histórico geográfico pode ser persistido em lote (batch) no PostgreSQL.
+## Fluxos principais
 
-## Requisitos de implementação (próximos passos)
+### Marketplace e vínculos
 
-1. Inicializar o projeto Node.js com TypeScript, cliente de banco (Prisma ou `pg`) e Socket.io.
-2. Criar migrações SQL do schema acima no Supabase.
-3. Implementar autenticação e validações de segurança.
-4. Implementar APIs de rotas, usuários, turmas, presenças e histórico.
-5. Implementar serviço de otimização de rota (Mapbox).
-6. Implementar notificações push (Firebase Admin SDK).
+Frotas publicadas aparecem por cidade e instituição coberta. A busca pública usa `search_schools` e `search_marketplace`; somente campos institucionais e comerciais sanitizados são retornados.
 
-## Documentação local
+O responsável principal cria menores e o aluno adulto cria o próprio registro. Solicitações guardam um snapshot privado do endereço, exigem escola ativa/coberta e cidade atendida, e aguardam aprovação do owner. A aprovação cria o vínculo na mesma transação.
 
-- Arquitetura e próximos passos: [`be-tech-plan.md`](./be-tech-plan.md)
-- Regras de código, testes e fluxo Git: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
+Owners também podem convidar responsáveis ou alunos adultos. O Flutter preserva o token no callback de cadastro/login; o backend guarda somente o hash SHA-256 e aceita o convite apenas para o mesmo e-mail confirmado. Responsáveis secundários recebem acesso derivado aos vínculos ativos do dependente.
 
-## Status atual do repositório
+O catálogo `schools` não contém dados reais neste ciclo. A carga regional futura será inserida diretamente no Supabase, sem importador ou API definida.
 
-Neste momento, este repositório funciona como base de especificação do backend. Ainda não há implementação de código de aplicação no checkout atual.
+### Frota e rotas
+
+O dono cadastra vans, define a capacidade, configura rotas e escolhe motorista e van padrão. Ele pode substituir ambos em uma viagem específica sem mudar o planejamento futuro.
+
+Cada `route` representa um único sentido: ida ou volta. Rotas opostas podem formar um par. Uma rota contém escolas ordenadas por uma tabela relacional; o dono define a ordem das escolas. O sistema otimiza as paradas residenciais respeitando essa ordem e os horários.
+
+As escolas vêm de um catálogo global vazio neste ciclo. Usuários não escrevem diretamente no catálogo; a carga futura será manual no Supabase. A fonte externa, se necessária, será decidida antes de qualquer importação.
+
+### Agenda, viagens e confirmações
+
+Uma rota possui agenda semanal. Cada aluno pode usar dias e sentidos diferentes; por exemplo, pode não ir com a van e voltar com ela.
+
+O sistema cria as viagens do dia seguinte a partir da agenda. `service_days` agrupa as viagens de ida e volta da mesma operação. Cada `trip` executa uma única `route` e mantém status, horários, van, motorista, passageiros e histórico próprios.
+
+Os passageiros previstos começam com confirmação pendente. O prazo é configurável por rota e usa 30 minutos antes da saída como padrão:
+
+- `confirmed`: participa da otimização;
+- `declined`: fica fora da rota e permanece no histórico;
+- `expired`: não respondeu no prazo e fica fora da rota.
+
+A capacidade considera a programação normal, não as ausências diárias. Uma van com 30 lugares e 30 alunos programados aparece sem vaga; novos pedidos entram na lista de espera.
+
+### Operação do motorista
+
+O motorista acessa somente a van, as viagens e os alunos atribuídos. Ele não altera endereços, escolas, alunos ou a configuração permanente da rota.
+
+Durante uma viagem, o motorista pode:
+
+- iniciar, concluir ou cancelar a operação permitida;
+- escolher a próxima escola ou parada autorizada;
+- marcar o passageiro como aguardando, embarcado, desembarcado ou ausente;
+- registrar atraso, trânsito, acidente, falha mecânica, desvio ou outra ocorrência;
+- informar um desvio temporário com justificativa;
+- enviar uma mensagem categorizada aos participantes da própria viagem.
+
+Mudanças de estado registram horário e, quando aplicável, localização. QR Code e detecção automática de embarque ficam fora do MVP.
+
+### Rastreamento e privacidade
+
+O rastreamento começa quando o motorista inicia a `trip` e termina quando a conclui ou cancela. O dono acompanha todas as viagens ativas da própria frota.
+
+Responsáveis e alunos adultos acompanham somente viagens nas quais o aluno está confirmado. Eles recebem a posição atual da van, a escola, o ETA, o próprio ponto e um trajeto público aproximado. O backend nunca envia endereços, identidades, pontos ou a geometria completa que possa revelar a casa de outro aluno.
+
+Os pontos brutos de GPS permanecem por 30 dias. Resumos de viagem, distância, duração, horários, atrasos, ocorrências, embarques, desembarques e eventos de auditoria permanecem sem prazo de expiração definido.
+
+### Roteirização
+
+A rota-base será recalculada quando alunos, endereços, escolas ou atribuições mudarem. Criar a viagem diária não chama o provedor de rotas. No encerramento das confirmações, o sistema recalcula somente se a lista de passageiros mudou. Incidentes podem disparar um novo cálculo excepcional.
+
+O MVP considera até 30 alunos por van, mais partida e escolas. A escolha do provedor deverá verificar limites de paradas, cobertura, ETA e custo. Se uma chamada não aceitar todos os pontos, o serviço dividirá o cálculo sem alterar o modelo de domínio.
+
+### Notificações
+
+O sistema enviará notificações para:
+
+- confirmação disponível e prazo próximo;
+- viagem iniciada;
+- van a cerca de 10 minutos do aluno;
+- chegada ao ponto;
+- embarque e desembarque;
+- chegada à escola;
+- atraso, desvio, cancelamento e ocorrência;
+- mensagem manual do dono.
+
+O aviso de proximidade usa ETA, não uma distância fixa. O limite padrão é 10 minutos, configurável por rota, com deduplicação para evitar notificações repetidas.
+
+O dono pode enviar mensagens para toda a frota, rota, viagem, van ou usuário. O motorista usa categorias predefinidas e uma observação opcional apenas na própria viagem.
+
+## Multi-tenancy e segurança
+
+A frota é o tenant. Toda entidade operacional inclui `fleet_id`, e toda tabela exposta possui RLS. Conhecer um UUID nunca concede acesso.
+
+Regras centrais:
+
+- o aplicativo usa somente a chave pública do Supabase;
+- chaves secretas permanecem em serviços internos;
+- papéis enviados pelo cliente nunca são considerados confiáveis;
+- operações críticas validam associação, papel e estado no banco;
+- nenhum usuário remove ou rebaixa o último dono ativo;
+- canais Realtime são privados e autorizados por viagem;
+- auditorias são imutáveis para usuários comuns;
+- projeções públicas omitem dados operacionais e pessoais.
+
+## Etapas planejadas
+
+1. **Fundação multi-tenant:** Supabase local, Auth, perfis, frotas, associações, múltiplos papéis, RLS e auditoria — concluída localmente no Ciclo 1.
+2. **Marketplace e vínculos:** catálogo vazio, cobertura comercial, alunos, responsáveis, solicitações, convites, vínculos, privacidade e auditoria — concluído localmente no Ciclo 2. Preferências, capacidade e lista de espera ficaram fora do corte.
+3. **Frota e planejamento:** vans, capacidade, motoristas, rotas, escolas ordenadas, agendas e atribuições.
+4. **Operação diária:** dias de serviço, viagens, confirmações, substituições e presença.
+5. **Rastreamento e ocorrências:** Realtime privado, GPS, visibilidade segura, desvios, atrasos e retenção.
+6. **Roteirização e notificações:** otimização, ETA, geocodificação, push e integrações externas.
+
+Cada etapa terá especificação e plano próprios. A implementação começará pela fundação e seguirá TDD estrito.
+
+## Documentação
+
+- [Plano técnico e modelo de domínio](./be-tech-plan.md)
+- [Diretrizes de desenvolvimento](./CONTRIBUTING.md)
+- [Entregas por ciclo](./deliverables.md)
+- [Plano de implementação do Ciclo 1](./docs/superpowers/plans/2026-09-05-ciclo-1-fundacao-multitenant.md)
+- [Spec do Ciclo 2](./docs/superpowers/specs/2026-09-06-ciclo-2-marketplace-vinculos-design.md)
+- [Plano de implementação do Ciclo 2](./docs/superpowers/plans/2026-09-06-ciclo-2-marketplace-vinculos.md)
