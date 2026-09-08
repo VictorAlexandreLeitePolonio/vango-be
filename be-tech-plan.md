@@ -1,71 +1,71 @@
-# VanGo — plano técnico do backend
+# VanGo — Backend Technical Plan
 
-## 1. Estado e finalidade
+## 1. Status and Purpose
 
-Este documento registra a arquitetura aprovada para o MVP do VanGo. Os Ciclos 0, 1 e 2 estão implementados localmente no Supabase; vans, rotas, operação, mapa e notificações continuam planejados para ciclos posteriores.
+This document records the approved architecture for the VanGo MVP. Cycles 0, 1, and 2 are fully implemented locally in Supabase; vans, routes, operations, map tracking, and push notifications remain planned for subsequent cycles.
 
-O aplicativo será mobile, desenvolvido em Flutter. Este repositório concentrará todo o backend no Supabase. Não haverá API Node.js, JWT próprio, `bcrypt` ou servidor Socket.io no MVP.
+The mobile client will be developed in Flutter. This repository contains the complete Supabase backend. There will be no custom Node.js API server, custom JWT tokens, custom `bcrypt` implementations, or custom Socket.io servers in the MVP.
 
-## 2. Escopo do produto
+## 2. Product Scope
 
-O VanGo coordena transporte escolar e universitário entre quatro papéis:
+VanGo coordinates school and university transport logistics across four distinct user roles:
 
-- dono da frota (`owner`);
-- motorista (`driver`);
-- responsável (`guardian`);
-- aluno adulto (`student`).
+- Fleet owner (`owner`);
+- Driver (`driver`);
+- Guardian (`guardian`);
+- Adult student (`student`).
 
-Uma conta pode acumular papéis. O papel sempre pertence ao vínculo do usuário com uma frota. A frota representa o tenant e isola dados, permissões e operações.
+A single user account can accumulate multiple roles. Roles are always contextual to a user's association with a fleet. The fleet represents the tenant, isolating data, permissions, and operations.
 
-Alunos menores não possuem conta. Um ou mais responsáveis gerenciam cada menor. Alunos maiores de idade possuem conta própria e usam o papel `student`.
+Minor students do not have user accounts. One or more guardians manage each minor student. Adult students (18+) maintain their own user accounts and operate under the `student` role.
 
-O MVP inclui:
+MVP Included Scope:
 
-- marketplace público de frotas;
-- solicitações e convites de vínculo;
-- gestão de vans, motoristas, alunos e responsáveis;
-- rotas recorrentes de ida e volta;
-- viagens diárias e confirmações por sentido;
-- localização da van durante viagens ativas;
-- roteirização, ETA e notificações;
-- registro de atrasos, desvios, ocorrências e eventos operacionais;
-- auditoria e isolamento multi-tenant.
+- Public fleet marketplace;
+- Linkage requests and fleet invitations;
+- Management of vans, drivers, students, and guardians;
+- Recurrent pickup and drop-off route configurations;
+- Daily trip generation and directional confirmation cutoffs;
+- Realtime van location tracking during active trips;
+- Route optimization, ETA calculations, and automated notifications;
+- Incident logging (delays, detours, traffic jams, mechanical issues);
+- Immutable auditing and strict multi-tenant isolation.
 
-O MVP exclui:
+MVP Excluded Scope:
 
-- pagamentos, mensalidades, contratos e comissões;
-- aprovação prévia de uma frota pela plataforma;
-- diretório público de responsáveis ou alunos;
-- avaliação pública de frotas;
-- QR Code ou detecção automática de embarque;
-- desenho de polígonos de atendimento;
-- login por telefone ou SMS.
+- Payments, tuition billing, contracts, and driver commissions;
+- Pre-approval of fleets by a platform admin;
+- Public directories of guardians or students;
+- Public rating/review systems for fleets;
+- QR codes or automated NFC/Bluetooth boarding detection;
+- Custom service area polygon drawing;
+- Phone number / SMS authentication.
 
-## 3. Arquitetura
+## 3. Architecture
 
-### 3.1 Abordagem híbrida no Supabase
+### 3.1 Hybrid Supabase Approach
 
-O backend usa cada recurso do Supabase onde ele reduz complexidade sem dispersar regras de negócio:
+The backend utilizes native Supabase services where they reduce complexity without scattering business logic:
 
-- **Supabase Auth:** cadastro por e-mail e senha, confirmação de e-mail, sessão e recuperação de senha;
-- **PostgreSQL:** modelo relacional, constraints, transações, histórico e auditoria;
-- **RLS:** autorização por linha e isolamento entre frotas;
-- **Database Functions/RPC:** comandos transacionais e regras críticas;
-- **Realtime Broadcast:** posição atual da van em canal privado por viagem;
-- **Edge Functions:** integrações externas, geocodificação, roteirização e push;
-- **Storage:** avatares, logos e arquivos futuros;
-- **Cron:** geração de viagens, fechamento de confirmações e expiração dos pontos brutos de GPS.
+- **Supabase Auth:** Email/password registration, email verification, session management, and password recovery;
+- **PostgreSQL:** Relational data model, constraints, transactions, historical records, and audit logs;
+- **Row Level Security (RLS):** Row-level authorization and tenant isolation across fleets;
+- **Database Functions/RPC:** Transactional commands and critical business logic rules;
+- **Realtime Broadcast:** Live van position streaming via private per-trip channels;
+- **Edge Functions:** External integrations, geocoding, route optimization, and push notifications;
+- **Storage:** Avatars, fleet logos, and future attachments;
+- **Cron Jobs:** Trip generation, confirmation cutoffs, and raw GPS retention cleanup.
 
-O Flutter acessa diretamente consultas e alterações simples protegidas por RLS. Comandos que mudam várias entidades ou exigem validação concorrente passam por RPC. Edge Functions não repetem CRUD comum; elas protegem segredos e coordenam serviços externos.
+Flutter applications directly execute simple RLS-protected queries and updates. Operations affecting multiple entities or requiring concurrent validation execute via RPC functions. Edge Functions do not duplicate standard CRUD logic; they protect API secrets and coordinate third-party integrations.
 
-### 3.2 Alternativas rejeitadas
+### 3.2 Rejected Alternatives
 
-- **Node.js mais Supabase:** exige outro servidor e duplica autenticação, autorização e tempo real sem benefício suficiente para o MVP.
-- **Tudo por Edge Functions:** aumenta código intermediário e latência e reduz a velocidade inicial.
-- **Flutter direto em todas as tabelas:** espalha regras transacionais pelo cliente e aumenta o risco de inconsistência.
-- **Socket.io próprio:** o Realtime privado do Supabase cobre o fluxo inicial de localização.
+- **Node.js + Supabase:** Requires managing a separate application server, duplicating authentication, authorization, and realtime logic without tangible MVP benefit.
+- **Pure Edge Functions for All Operations:** Increases boilerplate code and network latency, reducing initial development speed.
+- **Direct Flutter Writes to All Database Tables:** Scatters transactional business logic across mobile clients and increases data corruption risks.
+- **Custom Socket.io Server:** Native Supabase private Realtime channels cover all live location requirements.
 
-### 3.3 Estrutura futura do repositório
+### 3.3 Backend Folder Structure
 
 ```text
 supabase/
@@ -78,536 +78,458 @@ supabase/
     └── _shared/
 ```
 
-O repositório não terá essa estrutura até o início da implementação. Migrações serão a única forma válida de alterar o banco compartilhado.
+Migrations are the sole valid mechanism for applying database schema changes.
 
-## 4. Identidade, tenant e papéis
+## 4. Identity, Tenants, and Roles
 
-### 4.1 Identidade
+### 4.1 Identity
 
-`auth.users` mantém e-mail, senha, confirmação e sessão. `profiles` contém somente dados de domínio:
+`auth.users` manages email, password hashes, email verification state, and session tokens. `profiles` contains domain profile data:
 
-| Campo | Regra |
+| Field | Rule |
 | --- | --- |
-| `id` | UUID e FK para `auth.users.id` |
-| `full_name` | nome do usuário |
-| `phone` | telefone opcional |
-| `avatar_path` | caminho opcional no Storage |
-| `created_at` | criação |
-| `updated_at` | última atualização |
+| `id` | UUID, FK to `auth.users.id` |
+| `full_name` | User's full name |
+| `phone` | Optional contact phone |
+| `avatar_path` | Optional Storage file path |
+| `created_at` | Record creation timestamp |
+| `updated_at` | Record update timestamp |
 
-Um trigger mínimo cria o perfil após o cadastro. O usuário pode completar o perfil antes de confirmar o e-mail. Criar uma frota, convidar alguém ou solicitar vínculo exige e-mail confirmado.
+A database trigger initializes a minimal profile upon sign-up. Users can complete profile details prior to email verification. Creating a fleet, issuing invitations, or submitting link requests requires a verified email address.
 
-`profiles` não duplica e-mail, senha ou papéis. Metadados editáveis do JWT nunca concedem autorização.
+`profiles` does not duplicate email, password, or role fields. Editable JWT metadata is never used for authorization decisions.
 
-### 4.2 Frota como tenant
+### 4.2 Fleet as Tenant
 
-`fleets` representa o tenant:
+`fleets` represents the multi-tenant boundary:
 
-| Campo | Regra |
-| --- | --- |
-| `id` | UUID |
-| `name` | nome comercial |
-| `slug` | identificador público único |
-| `description` | descrição pública opcional |
-| `logo_path` | logo opcional |
-| `status` | `draft`, `published`, `suspended` ou `archived` |
-| `created_by` | usuário criador |
-| `created_at` | criação |
-| `updated_at` | última atualização |
-
-O dono pode publicar a frota imediatamente. `suspended` fica reservado para moderação futura; o MVP não exige aprovação de um administrador da plataforma.
-
-Toda entidade operacional inclui `fleet_id`. O aplicativo informa o tenant em cada operação. O backend não mantém um “tenant atual” global.
-
-### 4.3 Associação e múltiplos papéis
-
-`fleet_memberships` registra uma associação única entre usuário e frota:
-
-| Campo | Regra |
+| Field | Rule |
 | --- | --- |
 | `id` | UUID |
-| `fleet_id` | tenant |
-| `user_id` | usuário autenticado |
-| `status` | `active`, `suspended` ou `left` |
-| `joined_at` | início |
-| `suspended_at` | suspensão opcional |
-| `left_at` | saída opcional |
+| `name` | Commercial fleet name |
+| `slug` | Unique public identifier string |
+| `description` | Optional public description |
+| `logo_path` | Optional logo image path |
+| `status` | `draft`, `published`, `suspended`, or `archived` |
+| `created_by` | Creating user UUID |
+| `created_at` | Creation timestamp |
+| `updated_at` | Last update timestamp |
 
-`fleet_membership_roles` permite vários papéis na mesma associação:
+Owners can publish their fleet immediately. `suspended` is reserved for future admin moderation; the MVP does not require platform admin approval before publishing.
 
-| Campo | Regra |
+Every operational entity includes `fleet_id`. Client applications supply the tenant in every operational payload. The backend does not maintain a global implicit "current tenant".
+
+### 4.3 Memberships and Multiple Roles
+
+`fleet_memberships` establishes a unique relationship between a user and a fleet:
+
+| Field | Rule |
 | --- | --- |
-| `membership_id` | associação |
-| `role` | `owner`, `driver`, `guardian` ou `student` |
+| `id` | UUID |
+| `fleet_id` | Tenant ID |
+| `user_id` | Authenticated user ID |
+| `status` | `active`, `suspended`, or `left` |
+| `joined_at` | Join timestamp |
+| `suspended_at` | Optional suspension timestamp |
+| `left_at` | Optional leave timestamp |
 
-A chave composta impede papéis duplicados. Um usuário pode acumular papéis na mesma frota e pertencer a várias frotas. A seleção de papel no Flutter muda a experiência visual, não as permissões no banco.
+`fleet_membership_roles` permits multiple roles within a single membership:
 
-Criar uma frota cria atomicamente uma associação ativa e o primeiro papel `owner`. Nenhuma operação remove, suspende ou rebaixa o último dono ativo.
-
-### 4.4 Auditoria
-
-`audit_events` registra mudanças sensíveis:
-
-| Campo | Regra |
+| Field | Rule |
 | --- | --- |
-| `id` | identificador ordenável ou UUID |
-| `fleet_id` | tenant |
-| `actor_user_id` | autor; nulo para automação |
-| `action` | ação estável |
-| `entity_type` | tipo da entidade |
-| `entity_id` | entidade afetada |
-| `metadata` | contexto sanitizado |
-| `created_at` | horário do evento |
+| `membership_id` | Membership FK |
+| `role` | `owner`, `driver`, `guardian`, or `student` |
 
-Usuários comuns não alteram nem apagam auditorias. `metadata` registra contexto e campos alterados sem copiar endereços, tokens ou outros dados pessoais desnecessários.
+A composite primary key prevents duplicate roles. A user can accumulate multiple roles within the same fleet and hold memberships across multiple fleets. Selecting a role in Flutter changes the visual UI experience, not database permissions.
 
-## 5. Capacidades por papel
+Creating a fleet atomically creates an active membership and assigns the initial `owner` role. No system operation can remove, suspend, or demote the last active owner of a fleet.
 
-### 5.1 Dono
+### 4.4 Audit Logging
 
-O dono acessa somente as frotas nas quais possui papel `owner`. Ele pode:
+`audit_events` logs sensitive operations:
 
-- editar e publicar a frota;
-- cadastrar, remover logicamente e consultar vans;
-- associar motoristas;
-- configurar rotas, escolas, horários, capacidade e prazos;
-- aceitar ou negar solicitações;
-- atribuir aluno a uma van e rota, mesmo fora das preferências informadas;
-- gerenciar lista de espera;
-- acompanhar todas as viagens ativas do tenant;
-- substituir motorista ou van em uma viagem;
-- consultar histórico e ocorrências;
-- enviar notificações para frota, rota, viagem, van ou usuário.
+| Field | Rule |
+| --- | --- |
+| `id` | Sortable UUID or UUID v4 |
+| `fleet_id` | Tenant ID |
+| `actor_user_id` | Actor user ID (NULL for background jobs) |
+| `action` | Stable action string code |
+| `entity_type` | Targeted entity type name |
+| `entity_id` | Affected entity UUID |
+| `metadata` | Sanitized JSON context |
+| `created_at` | Event timestamp |
 
-### 5.2 Motorista
+Standard users cannot modify or delete audit entries. `metadata` stores operational context and modified field names without copying addresses, tokens, or unnecessary personal data.
 
-O motorista acessa somente vans, rotas e viagens atribuídas. Ele pode:
+## 5. Capabilities by Role
 
-- consultar alunos previstos, confirmados e não confirmados;
-- consultar rota, próxima parada e ETA;
-- iniciar, concluir ou cancelar uma viagem permitida;
-- escolher a próxima parada entre as autorizadas;
-- marcar embarque, desembarque ou ausência;
-- transmitir localização durante a viagem ativa;
-- registrar trânsito, atraso, acidente, falha mecânica, desvio e outras ocorrências;
-- registrar justificativa para um desvio temporário;
-- enviar uma mensagem categorizada, com observação opcional, aos participantes da própria viagem.
+### 5.1 Fleet Owner (`owner`)
 
-O motorista não altera endereços, escolas, alunos, capacidade ou configuração permanente da rota.
+Owners access only fleets where they hold the `owner` role. Capabilities:
 
-### 5.3 Responsável
+- Edit and publish fleet profiles;
+- Register, soft-delete, and view fleet vehicles (vans);
+- Assign drivers to the fleet;
+- Configure routes, school stop order, schedules, vehicle capacities, and cutoff deadlines;
+- Accept or reject student link requests;
+- Assign students to vans and routes (overriding submitted preferences if necessary);
+- Manage enrollment waitlists;
+- Monitor all active live trips across the fleet;
+- Perform driver or van substitutions on active/scheduled trips;
+- Review operational history and incident logs;
+- Broadcast push notifications across fleets, routes, trips, vans, or specific users.
 
-Um responsável pode gerenciar vários alunos menores. Vários responsáveis podem estar ligados ao mesmo aluno:
+### 5.2 Driver (`driver`)
 
-- todos acompanham e confirmam viagens autorizadas;
-- o responsável principal edita o aluno, o endereço e a programação;
-- somente o principal convida ou remove outros responsáveis;
-- alterações sensíveis ficam auditadas.
+Drivers access only assigned vans, routes, and trips. Capabilities:
 
-O responsável pesquisa frotas, solicita vínculo, informa preferências, recebe convites, confirma ida e volta separadamente e acompanha somente as viagens do próprio dependente.
+- View scheduled, confirmed, and unconfirmed passenger manifests;
+- View route stops, next destination, and ETA;
+- Start, complete, or cancel authorized trips;
+- Select the next authorized stop point;
+- Update passenger statuses (waiting, boarded, dropped-off, absent);
+- Stream GPS coordinates during active trips;
+- Log incidents (traffic, delays, accidents, mechanical breakdowns, detours);
+- Record mandatory justifications for temporary route detours;
+- Send categorized messages with optional notes to trip participants.
 
-### 5.4 Aluno adulto
+Drivers cannot edit addresses, schools, student data, vehicle capacities, or permanent route templates.
 
-O aluno adulto possui `profile`, associação com papel `student` e um registro de aluno ligado à própria conta. Ele pesquisa frotas, solicita vínculo, informa preferências, administra a própria programação, confirma cada sentido e acompanha somente as próprias viagens.
+### 5.3 Guardian (`guardian`)
 
-## 6. Modelo de domínio planejado
+Guardians can manage multiple minor students. Multiple guardians can link to the same minor student:
 
-Esta seção combina o contrato entregue no Ciclo 2 com entidades planejadas para ciclos posteriores. Cada ciclo detalha constraints e índices antes da implementação.
+- All linked guardians can follow live tracking and confirm daily trips;
+- The primary guardian edits student data, residential address, and weekly schedules;
+- Only the primary guardian can invite or remove secondary guardians;
+- Sensitive changes are recorded in audit logs.
 
-### 6.1 Localização e catálogo público
+Guardians search fleets, submit link requests, set route preferences, accept fleet invitations, confirm pickup and drop-off trips independently, and follow live tracking exclusively for their linked dependent.
 
-`fleet_service_cities` liga uma frota às cidades usadas na descoberta do marketplace. Cidade é um filtro comercial, não uma fronteira operacional. Uma rota pode atravessar várias cidades.
+### 5.4 Adult Student (`student`)
 
-`schools` forma um catálogo global, vazio no Ciclo 2 e preparado para carga manual futura:
+Adult students possess a user `profile`, a `fleet_membership` with the `student` role, and a student domain record linked to their account. They search fleets, request linkages, configure route preferences, manage their weekly schedule, confirm daily trips, and follow live tracking exclusively for their own trips.
 
-- `id` interno;
-- `provider` e `external_id` para idempotência;
-- nome e tipo da instituição;
-- endereço estruturado;
-- cidade, latitude e longitude;
-- metadados de origem e data da última sincronização.
+## 6. Domain Model
 
-Usuários autenticados não escrevem diretamente no catálogo. A carga inicial pretendida para Itapetininga, Sorocaba, São Miguel Arcanjo, Tatuí, Capão Bonito e Pilar do Sul será feita diretamente no Supabase em trabalho futuro. Nenhum importador ou provedor externo foi fixado.
+This section combines the Cycle 2 schema with planned domain entities for subsequent cycles.
 
-O marketplace expõe uma projeção sanitizada das frotas publicadas e filtra por cidade e instituição no Ciclo 2. Turno, disponibilidade, distância e operação ficam para ciclos posteriores. Nenhuma consulta pública expõe usuários, alunos, endereços residenciais, rotas exatas ou localização ao vivo.
+### 6.1 Locations and Public Catalog
 
-### 6.2 Alunos e responsáveis
+`fleet_service_cities` links a fleet to commercial cities served in marketplace searches. Cities represent commercial search filters, not operational geographic boundaries.
 
-`students` representa tanto menores quanto alunos adultos:
+`schools` forms a global catalog, empty in Cycle 2 and prepared for future manual data seeding:
 
-- identidade e data de nascimento;
-- endereço residencial atual e coordenadas;
-- `profile_id` opcional e único para aluno adulto;
-- datas de criação e atualização.
+- Internal `id`;
+- `provider` and `external_id` for idempotency;
+- Institution name and type (e.g., elementary, high school, university);
+- Structured street address;
+- City, latitude, and longitude;
+- Data origin metadata and last sync timestamp.
 
-Menor possui `profile_id` nulo. O responsável principal controla os dados. O endereço completo só chega a uma frota após o usuário enviar uma solicitação.
+Standard authenticated users cannot write directly to the catalog. Initial school loading for target regions will be executed directly in Supabase. No external importer script or provider API is fixed in Cycle 2.
 
-`student_guardians` relaciona menores e responsáveis:
+The marketplace exposes a sanitized view of published fleets filtered by city and covered schools. Operational metrics, distance calculations, and real-time locations are omitted from public endpoints.
+
+### 6.2 Students and Guardians
+
+`students` represents both minor dependents and adult students:
+
+- Identity details and date of birth;
+- Current residential street address and coordinates;
+- Optional unique `profile_id` (populated exclusively for adult students);
+- Creation and update timestamps.
+
+Minor students maintain a `NULL` `profile_id`. The primary guardian controls student data. Full home addresses are disclosed to a fleet owner only when a link request is submitted.
+
+`student_guardians` connects minor students to guardians:
 
 - `student_id`;
 - `guardian_user_id`;
-- `is_primary`;
-- permissões de acompanhamento e confirmação;
-- estado e datas do vínculo.
+- `is_primary` boolean flag;
+- Tracking and confirmation permissions;
+- Relationship status and timestamps.
 
-Cada menor tem exatamente um responsável principal ativo e pode ter vários secundários.
+Every minor student has exactly one active primary guardian and can have multiple secondary guardians.
 
-### 6.3 Solicitações, convites e vínculos
+### 6.3 Link Requests, Invitations, and Enrollments
 
-`fleet_join_requests` registra a solicitação feita por um responsável ou aluno adulto:
+`fleet_join_requests` logs enrollment requests submitted by guardians or adult students:
 
-- frota, solicitante e aluno;
-- escola, turno, sentidos e dias desejados;
-- endereço privado usado na análise;
-- status `pending`, `approved`, `rejected`, `waitlisted` ou `cancelled`;
-- decisão, autor e datas.
+- Fleet ID, requester ID, and student ID;
+- Target school ID, shift, directions, and desired days;
+- Private residential address snapshot used during evaluation;
+- Status (`pending`, `approved`, `rejected`, `waitlisted`, `cancelled`);
+- Decision metadata, author, and timestamps.
 
-`join_request_van_preferences` guarda até três vans em ordem de preferência. As preferências são informativas. O dono pode escolher outra van compatível, e a atribuição final prevalece.
+`join_request_van_preferences` stores up to three preferred vans in rank order. Preferences are informational; the owner can assign any compatible van.
 
-`fleet_invitations` permite ao dono convidar um contato conhecido. Não existe busca pública de usuários.
+`fleet_invitations` enables fleet owners to invite known email contacts directly.
 
-`fleet_enrollments` representa o vínculo aprovado entre frota e aluno. Um aluno pode manter vínculos ativos com várias frotas. O banco impede programações conflitantes no mesmo dia, turno e sentido.
+`fleet_enrollments` represents an approved operational link between a fleet and a student. A student can maintain active enrollments across multiple non-conflicting fleets.
 
-Sem vaga programada, a solicitação entra na lista de espera. A vaga considera a capacidade contratada da rota, não faltas ocasionais.
+If no seat capacity exists, requests enter a waitlisted status. Capacity evaluates contracted vehicle seat limits, not temporary daily absences.
 
-### 6.4 Vans e atribuições
+### 6.4 Vans and Vehicle Assignments
 
-`vans` pertence a uma frota e contém:
+`vans` belongs to a fleet and includes:
 
-- placa única conforme a regra definida no ciclo;
-- modelo, identificação pública e capacidade;
-- status operacional;
-- dados públicos resumidos para o marketplace;
-- datas de criação e atualização.
+- License plate;
+- Vehicle model, public identification name, and seating capacity;
+- Operational status;
+- Summarized public details for marketplace previews;
+- Creation and update timestamps.
 
-O MVP deve suportar cerca de 30 alunos por van. A capacidade permanece configurável.
+The MVP targets up to 30 students per van. Seating capacity remains configurable.
 
-Uma rota possui van e motorista padrão. Cada viagem copia essa configuração para preservar o histórico. O dono pode substituir van ou motorista antes da saída. A substituição exige motivo e gera auditoria sem alterar a rota recorrente.
+A route maintains default van and driver assignments. Daily trips clone these defaults to preserve history. Owners can perform single-trip driver or vehicle substitutions with mandatory justifications and audit logs.
 
-### 6.5 Rotas recorrentes
+### 6.5 Recurrent Routes
 
-`routes` representa um único sentido:
+`routes` represents a single direction:
 
 - `fleet_id`;
-- nome e status;
-- direção `going` ou `return`;
-- `paired_route_id` opcional;
-- partida e término planejados;
-- van e motorista padrão;
-- parâmetros de confirmação e proximidade;
-- versão da rota-base otimizada.
+- Name and status;
+- Direction (`going` for morning pickup, `return` for afternoon drop-off);
+- Optional `paired_route_id`;
+- Scheduled departure and arrival target times;
+- Default van and driver assignments;
+- Confirmation cutoff and proximity alert parameters;
+- Base route optimization version tag.
 
-A rota de ida segue partida da van, residências confirmadas e escolas. A rota de volta segue escolas, residências confirmadas e ponto final da van. Rotas opostas podem formar um par, mas mantêm agenda, alunos e ordem independentes.
+A pickup route starts at the van departure point, proceeds through confirmed home stops, and terminates at schools. A drop-off route starts at schools, proceeds through confirmed home stops, and terminates at the van depot. Paired routes link opposite directions while maintaining independent schedules and passenger manifests.
 
-`route_schools` substitui arrays de IDs e mantém integridade relacional:
+`route_schools` acts as a junction table replacing raw ID arrays:
 
-- rota e escola;
-- ordem definida pelo dono;
-- janela de chegada ou saída;
-- estado do vínculo.
+- Route ID and school ID;
+- Stop order sequence set by fleet owner;
+- Target arrival/departure time window;
+- Link status.
 
-O MVP preserva a ordem das escolas. O otimizador ordena as residências sem mudar essa sequência.
+`route_schedules` defines operating weekdays, departure times, time zones, operational windows, and confirmation cutoff deadlines (defaulting to 30 minutes before departure).
 
-`route_schedules` define dias da semana, horário previsto de saída, fuso horário, janela operacional e prazo de confirmação. O prazo padrão é 30 minutos antes da saída, mas o dono pode alterá-lo por rota.
+`route_student_schedules` configures which weekdays a student utilizes a route. Morning pickup and afternoon drop-off operate independently.
 
-`route_student_schedules` define os dias em que cada aluno usa aquela rota. Ida e volta são independentes. Um aluno pode faltar na ida e usar normalmente a volta.
+### 6.6 Service Days and Daily Trips
 
-### 6.6 Dias de serviço e viagens
+`service_days` groups morning and afternoon trips operating on the same calendar date.
 
-`service_days` agrupa, por data, as viagens de ida e volta relacionadas. Ele permite consultar a operação diária sem misturar os estados de cada sentido.
+`trips` represents a single directional execution:
 
-`trips` representa uma única execução direcional:
+- `service_day_id`, `fleet_id`, and `route_id`;
+- Copied or substituted van and driver assignments;
+- Scheduled and actual timestamps;
+- Trip status (`scheduled`, `confirmation_closed`, `active`, `completed`, `cancelled`);
+- Optimized route geometry utilized for execution;
+- Operational summary data.
 
-- `service_day_id`, `fleet_id` e `route_id`;
-- van e motorista copiados ou substituídos;
-- horários planejados e reais;
-- estado `scheduled`, `confirmation_closed`, `active`, `completed` ou `cancelled`;
-- rota otimizada usada naquela execução;
-- resumo operacional.
+A daily automated job creates next-day trip records without calling external routing providers.
 
-Uma `trip` referencia somente uma rota. Ela não contém `route_going_id` e `route_return_id`, pois ida e volta têm estados, horários, passageiros, ocorrências e localizações independentes.
+`trip_passengers` clones scheduled students. Confirmation and operational statuses remain separate:
 
-Um job diário cria as viagens do dia seguinte. Criar os registros não chama o provedor de rotas.
+- Confirmation status: `pending`, `confirmed`, `declined`, `expired`;
+- Operational status: `waiting`, `boarded`, `dropped_off`, `absent`.
 
-`trip_passengers` copia os alunos previstos. Confirmação e embarque usam estados separados:
+At cutoff deadlines, `pending` statuses transition to `expired` and are excluded from route optimization.
 
-- confirmação: `pending`, `confirmed`, `declined` ou `expired`;
-- operação: `waiting`, `boarded`, `dropped_off` ou `absent`.
+`trip_stops` stores stop snapshots for the trip execution:
 
-Ao vencer o prazo, `pending` passa para `expired` e fica fora da otimização. O sistema não apaga nem troca a atribuição; ele conserva a decisão no histórico. Após o início, somente uma exceção autorizada pode mudar a participação, sempre com auditoria.
+- Origin, home address, school, or final destination;
+- Planned and actual sequence numbers;
+- Necessary coordinates and street addresses;
+- Estimated and actual arrival times;
+- Associated student or school references.
 
-`trip_stops` guarda o snapshot das paradas usadas na viagem:
+Snapshots prevent subsequent address edits from corrupting historical trip logs.
 
-- origem, residência, escola ou destino final;
-- ordem planejada e real;
-- coordenadas e endereço necessários à operação;
-- ETA e horário real;
-- aluno ou escola relacionados, quando aplicável.
+### 6.7 Incidents and Operational Changes
 
-Snapshots impedem que a edição posterior de um endereço altere uma viagem concluída.
+`trip_incidents` records operational events:
 
-### 6.7 Ocorrências e mudanças operacionais
+- Incident category (traffic, delay, accident, mechanical failure, detour, other);
+- Optional text description;
+- Author, timestamp, and location coordinates;
+- Estimated delay impact and resolution state.
 
-`trip_incidents` registra:
+Driver or vehicle substitutions and temporary detours log previous config, new config, actor UUID, timestamp, and justification notes.
 
-- categoria: trânsito, atraso, acidente, falha mecânica, desvio ou outra;
-- descrição opcional;
-- autor, data e localização;
-- impacto estimado e estado de resolução.
+### 6.8 Realtime Location Tracking
 
-Substituições de motorista ou van e desvios temporários registram configuração anterior, nova configuração, autor, horário e motivo. Resumos dessas mudanças permanecem junto ao histórico da viagem.
+`trip_location_points` stores GPS telemetry samples:
 
-### 6.8 Localização em tempo real
+- `fleet_id` and `trip_id`;
+- Latitude, longitude, speed, heading, and accuracy;
+- Device capture timestamp and server receive timestamp.
 
-`trip_location_points` armazena amostras do GPS:
+Live location streaming uses a private Supabase Realtime channel `trip:{trip_id}`. Only assigned drivers can publish location points. Fleet owners monitor all active trips. Guardians and adult students listen strictly to trips where their student is `confirmed`.
 
-- `fleet_id` e `trip_id`;
-- latitude, longitude, velocidade, direção e precisão;
-- horário capturado no dispositivo e recebido pelo backend.
+Tracking activates when a trip transitions to `active` and terminates upon `completed` or `cancelled`.
 
-O fluxo ao vivo usa um canal privado `trip:{trip_id}`. Somente o motorista atribuído transmite. O dono da frota recebe todas as viagens ativas. Responsáveis e alunos adultos recebem apenas viagens em que o aluno esteja confirmado.
+Role-based location visibility:
 
-O rastreamento começa quando a viagem entra em `active` e termina em `completed` ou `cancelled`. Mensagens fora desse período são rejeitadas.
+- Owner and driver receive full operational route geometries;
+- Guardians and adult students receive live van coordinates, school stops, ETA, their specific stop location, and approximate generalized route geometries.
 
-O payload ao vivo contém a posição da van e dados operacionais mínimos. Endereços de alunos nunca entram no broadcast.
+Raw GPS telemetry points are purged after 30 days. Operational summaries, total distance, duration, timetables, incident logs, and audit entries are retained permanently.
 
-Consultas de mapa aplicam projeções por papel:
+### 6.9 Route Optimization and ETA
 
-- dono e motorista recebem a rota operacional completa;
-- responsável recebe posição atual, escolas, ETA, ponto do próprio dependente e trecho aproximado relevante;
-- aluno adulto recebe posição atual, escolas, ETA, próprio ponto e trecho aproximado relevante.
+An Edge Function encapsulates geocoding and routing providers.
 
-Ocultar um marcador apenas no Flutter não protege os dados. O backend nunca envia pontos, identidades ou a geometria completa capaz de revelar casas de outros alunos.
+Calculation strategy:
 
-Pontos brutos de GPS expiram após 30 dias. O sistema conserva resumos, distância, duração, horários, atrasos, ocorrências, embarques, desembarques e auditoria.
+1. Recalculate base routes when students, home addresses, schools, or vehicle assignments change;
+2. Generate daily trip records via cron without invoking external routing APIs;
+3. Accept passenger confirmations until cutoff deadlines;
+4. Recalculate route geometry upon cutoff closure only if the confirmed passenger manifest changed;
+5. Freeze operational route version for execution;
+6. Recalculate exceptionally following authorized detours or incidents.
 
-### 6.9 Roteirização e ETA
+The MVP supports up to 30 students per vehicle plus school stops. Provider selection evaluates stop limits, regional accuracy, ETA reliability, pricing, and storage compliance terms.
 
-Uma Edge Function encapsula o provedor de geocodificação e rotas. O domínio não depende diretamente do formato de um fornecedor.
+### 6.10 Push Notifications
 
-Estratégia de cálculo:
+`device_tokens` stores FCM/APNs tokens per user, device, and platform.
 
-1. calcular a rota-base quando aluno, endereço, escola, van ou configuração mudar;
-2. criar as viagens do dia seguinte sem chamar o provedor;
-3. receber confirmações até o prazo;
-4. recalcular no fechamento somente se a lista de passageiros mudou;
-5. congelar a versão operacional da viagem;
-6. recalcular excepcionalmente após desvio ou incidente autorizado.
+`notifications` logs notification content, category, tenant ID, target audience, and source entity. `notification_deliveries` tracks delivery attempts, outcomes, and deduplication keys.
 
-O dono define a ordem das escolas. O serviço otimiza as residências e respeita horários e sequência. Uma rota pode atravessar cidades diferentes.
+Automated notification triggers:
 
-O limite esperado é de 30 alunos, mais partida, destino e escolas. A seleção do provedor deverá validar limite de paradas, trânsito, ETA, cobertura, preço e termos de armazenamento. Se o limite for menor, a implementação dividirá o cálculo em trechos mantendo uma única viagem no domínio.
+- Confirmation window open / upcoming deadline reminder;
+- Trip initiated by driver;
+- Van approaching (~10 minutes from student stop point);
+- Van arrived at student stop point;
+- Student boarded vehicle;
+- Student dropped off;
+- Van arrived at school;
+- Operational delay, detour, cancellation, or incident reported.
 
-### 6.10 Notificações
+Proximity alerts evaluate live ETA calculations rather than static radial distances. A deduplication key prevents repetitive spam alerts.
 
-`device_tokens` registra tokens por usuário, dispositivo e plataforma. Tokens inválidos são desativados.
+Fleet owners can broadcast custom push messages across fleets, routes, trips, vans, or individual users. Drivers select pre-defined incident categories with optional text notes restricted to active trips.
 
-`notifications` registra conteúdo, categoria, tenant, público e entidade de origem. `notification_deliveries` registra tentativa, resultado, provedor e deduplicação.
+## 7. Core Workflows
 
-Eventos automáticos do MVP:
+### 7.1 Sign-up and Fleet Setup
 
-- confirmação disponível;
-- prazo de confirmação próximo;
-- viagem iniciada;
-- van a cerca de 10 minutos do ponto;
-- van chegou ao ponto;
-- aluno embarcou;
-- aluno desembarcou;
-- van chegou à escola;
-- atraso, desvio, cancelamento ou ocorrência.
+1. User creates an account with email and password.
+2. Database trigger creates a matching `profiles` record.
+3. User completes profile details.
+4. User verifies their email address.
+5. RPC function creates fleet, membership, and initial `owner` role atomically within a single transaction.
+6. Owner keeps fleet in `draft` mode or publishes it to the marketplace.
 
-O aviso de proximidade usa ETA, não distância fixa. O padrão é 10 minutos e pode variar por rota. Uma chave de deduplicação impede alertas repetidos.
+### 7.2 Marketplace Discovery and Requests
 
-O dono envia mensagens para toda a frota, rota, viagem, van ou usuário. O motorista envia somente categorias predefinidas, com observação opcional, para participantes da própria viagem.
+1. Guardian or adult student filters published fleets by city and covered school.
+2. User provides full private residential address details.
+3. System saves an address snapshot into the link request.
+4. Fleet owner approves or rejects the request.
+5. Upon approval, system establishes the active enrollment, assigns derived membership roles, and creates audit entries.
 
-Uma Edge Function envia push pelo provedor escolhido. A chave administrativa e as credenciais do provedor nunca chegam ao Flutter.
+### 7.3 Trip Generation and Confirmation
 
-## 7. Fluxos de negócio
+1. Daily cron job creates `service_days`, `trips`, and `trip_passengers` for the next day.
+2. Passengers start in `pending` confirmation status.
+3. Guardians or adult students confirm or decline morning and afternoon trips independently.
+4. System dispatches reminder notifications prior to cutoff deadlines.
+5. Unresponsive pending passengers transition to `expired` at cutoff time.
+6. Confirmed passengers enter the final optimized route manifest.
+7. System recalculates route geometry only if passenger manifest changed.
 
-### 7.1 Cadastro e criação de frota
+### 7.4 Trip Execution
 
-1. Usuário cria conta com e-mail e senha.
-2. Trigger cria `profiles`.
-3. Usuário completa o perfil.
-4. Usuário confirma o e-mail.
-5. RPC cria a frota, a associação e o papel `owner` na mesma transação.
-6. O dono pode manter a frota em rascunho ou publicá-la imediatamente.
+1. Assigned driver initiates trip execution.
+2. Backend validates driver ID, vehicle ID, status, and tenant.
+3. Realtime channel begins accepting location streams.
+4. Driver follows authorized stops and updates passenger states (`boarded`, `dropped_off`, `absent`).
+5. Backend recalculates ETA, sends push alerts, and persists GPS samples.
+6. Driver logs incidents or detours if necessary.
+7. Upon completion or cancellation, backend terminates Realtime channel and generates permanent trip summaries.
 
-### 7.2 Descoberta e solicitação
+## 8. Authorization and RLS Policies
 
-1. Responsável ou aluno adulto filtra frotas por cidade e escola coberta.
-2. O usuário informa o endereço completo em área privada.
-3. O backend grava um snapshot do endereço na solicitação.
-4. O dono aprova ou rejeita a solicitação; não há lista de espera neste ciclo.
-5. Ao aprovar, o backend cria o vínculo, associa os papéis derivados e audita a transação.
+### 8.1 Principles
 
-Frotas são públicas; usuários não. O dono vê somente pessoas que solicitaram acesso ou contatos que ele convidou.
+- RLS is enabled on every exposed database table.
+- `auth.uid()` identifies calling users.
+- Private helper functions verify active memberships and roles per `fleet_id`.
+- Functions marked `SECURITY DEFINER` enforce explicit `search_path`, minimal privileges, and internal authorization checks.
+- Client applications use only the public Supabase anon key.
+- Client applications never specify their own roles, tenant boundaries, or permissions.
+- Database indexes cover all columns referenced in RLS policies.
 
-### 7.3 Geração e confirmação da viagem
+### 8.2 Access Control Matrix Summary
 
-1. Cron cria `service_days`, `trips` e passageiros previstos para o dia seguinte.
-2. Cada passageiro começa como `pending`.
-3. Responsável ou aluno adulto confirma ou recusa ida e volta separadamente.
-4. O sistema envia lembretes antes do prazo configurado.
-5. No prazo, pendências passam para `expired`.
-6. Confirmados entram na rota final; recusados e expirados permanecem no histórico.
-7. O sistema recalcula a rota somente quando a lista mudou.
-
-### 7.4 Execução da viagem
-
-1. Motorista atribuído inicia a viagem.
-2. O backend valida motorista, van, estado e tenant.
-3. O canal Realtime passa a aceitar localização.
-4. O motorista segue as paradas autorizadas e atualiza o estado dos passageiros.
-5. O sistema recalcula ETA, envia notificações e registra amostras.
-6. O motorista registra incidentes ou desvios quando necessário.
-7. Ao concluir ou cancelar, o backend fecha o rastreamento e produz o resumo permanente.
-
-## 8. Autorização e RLS
-
-### 8.1 Princípios
-
-- RLS fica ativa em toda tabela exposta.
-- `auth.uid()` identifica o usuário.
-- Helpers privados verificam associação ativa e papel por `fleet_id`.
-- Funções `security definer` usam `search_path` explícito, privilégios mínimos e revisão dedicada.
-- A chave pública do Supabase pode ficar no aplicativo; a chave secreta administrativa permanece fora dele.
-- O cliente nunca decide o próprio papel, tenant, capacidade ou autorização.
-- Índices acompanham todas as colunas usadas em policies e relações de tenant.
-
-Helpers privados evitam recursão entre policies de associação e papéis. Chamadas anônimas retornam nenhum dado privado. Conhecer o UUID de uma entidade não altera o resultado.
-
-### 8.2 Matriz resumida
-
-| Recurso | Público | Membro | Motorista atribuído | Dono |
+| Resource | Public | Member | Assigned Driver | Owner |
 | --- | --- | --- | --- | --- |
-| perfil público da frota | leitura sanitizada | leitura | leitura | gestão |
-| perfil completo de usuário | nenhum | próprio | próprio | somente projeções necessárias |
-| membros da frota | nenhum | próprio vínculo | equipe necessária | gestão do tenant |
-| alunos e endereços | nenhum | próprios vínculos | viagem atribuída | tenant autorizado |
-| rota completa | nenhum | projeção limitada | atribuída | tenant |
-| viagem ao vivo | nenhum | própria participação | atribuída | tenant |
-| localização de outras casas | nenhum | nenhum | operacional | operacional |
-| auditoria | nenhum | ações próprias quando previsto | ações próprias quando previsto | tenant |
+| Public Fleet Profile | Sanitized read | Read | Read | Full management |
+| Complete User Profile | None | Own profile | Own profile | Sanitized projections |
+| Fleet Memberships | None | Own membership | Relevant team | Full tenant management |
+| Students & Addresses | None | Own enrollments | Assigned trip manifest | Authorized tenant data |
+| Complete Route | None | Limited projection | Assigned route | Complete tenant routes |
+| Live Trip Stream | None | Own trip participation | Assigned trip | Complete tenant trips |
+| Other Students' Addresses | None | None | Operational stop point | Operational management |
+| Audit Logs | None | Own actions | Own actions | Complete tenant audit |
 
-### 8.3 RPCs críticas previstas
+## 9. Data Consistency and Concurrency Controls
 
-No Ciclo 2, as RPCs públicas incluem:
+Transactional RPC functions enforce critical invariants:
 
-- `search_schools`, `search_marketplace`, `list_fleet_join_requests` e `get_fleet_invitation`;
-- `create_minor_student`, `create_adult_student` e `update_student`;
-- convites de responsáveis e de frotas;
-- submissão, cancelamento e decisão de solicitações;
-- aceitação/recusa/cancelamento de convites e encerramento de vínculos.
+- Unique user memberships per fleet;
+- Single active primary guardian per minor student;
+- Maximum three van preferences per link request;
+- Seating allocations restricted to vehicle capacity;
+- Conflict detection for overlapping student, driver, or van schedules;
+- Prevention of duplicate active trips for the same vehicle/driver;
+- Rejection of GPS streams from unassigned drivers;
+- Validation of state machine transitions;
+- Protection of historical trip stop snapshots;
+- Prevention of last active fleet owner removal/demotion.
 
-As operações posteriores continuam previstas:
+## 10. Data Retention and Privacy
 
-- criar frota e primeiro dono;
-- alterar papéis sem remover o último dono;
-- solicitar e revisar vínculo;
-- atribuir aluno com validação de capacidade e conflito;
-- confirmar ou recusar viagem;
-- substituir motorista ou van;
-- iniciar, concluir ou cancelar viagem;
-- registrar estado do passageiro e ocorrência;
-- produzir resumo e encerrar rastreamento.
+- Raw GPS Telemetry: Purged after 30 days.
+- Trip Summaries & Logs: Retained permanently.
+- Incident & Detour Logs: Retained permanently.
+- Passenger Boarding Logs: Retained permanently.
+- Audit Logs: Retained permanently (immutable for standard users).
+- Device Tokens: Retained until revoked or invalidated.
 
-Erros terão códigos estáveis, entre eles `email_unverified`, `forbidden`, `membership_conflict`, `capacity_exceeded`, `schedule_conflict`, `invalid_transition` e `last_owner`. O Flutter não dependerá do texto humano da mensagem.
+Retention cleanup cron jobs delete expired records without storing sensitive data in execution logs.
 
-## 9. Consistência e concorrência
+## 11. Delivery Plan (6 Cycles)
 
-Operações de capacidade, atribuição e mudança de estado devem ocorrer em transações. O banco deve impedir:
+1. **Multi-tenant Foundation:** Local Supabase environment, Auth, `profiles`, `fleets`, memberships, roles, RLS policies, and auditing (Completed locally in Cycle 1).
+2. **Marketplace and Linkings:** Empty school catalog, commercial cities, `students`, `student_guardians`, invitations, join requests, active links, RLS policies, and auditing (Completed locally in Cycle 2).
+3. **Fleet and Planning:** Vehicles (vans), seating capacity, driver assignments, routes, paired directions, school sequence, and weekly schedules.
+4. **Daily Operations:** `service_days`, `trips`, passenger manifests, directional confirmations, substitutions, and operational states.
+5. **Tracking and Incidents:** Private Realtime streaming, GPS telemetry, privacy-safe location views, incidents, and data retention cleanup.
+6. **Route Optimization and Notifications:** Geocoding, route optimization, ETA calculations, push notifications, deduplication, and external API integrations.
 
-- duas associações idênticas entre usuário e frota;
-- dois responsáveis principais ativos para o mesmo menor;
-- mais de três preferências por solicitação;
-- atribuição acima da capacidade programada;
-- horários conflitantes para o mesmo aluno, motorista ou van;
-- início simultâneo indevido da mesma viagem;
-- localização enviada por motorista não atribuído;
-- transições inválidas de confirmação, embarque e viagem;
-- edição de snapshots históricos;
-- remoção do último dono.
+## 12. Locally Implemented Cycles Summary
 
-O desenho detalhado escolherá constraints, índices únicos parciais, locks ou níveis de isolamento conforme cada invariante.
+Cycle 1 delivered local Supabase setup, ordered migrations, automatic profile creation, transactional fleet creation, multi-role memberships, private RLS helpers, audit logging, local seed data, and documentation.
 
-## 10. Retenção e privacidade
+Cycle 2 added `schools`, commercial city coverage, `students`, `student_guardians`, invitations, join requests, enrollments, RPC functions, and sanitized audit logging. The school catalog remains empty without mock schools or importer scripts.
 
-- GPS bruto: 30 dias.
-- Resumo da viagem: permanente enquanto o produto mantiver o histórico.
-- Atrasos, ocorrências e desvios: permanentes.
-- Embarques, desembarques e ausências: permanentes.
-- Auditoria: permanente e imutável para usuários comuns.
-- Tokens de dispositivo: até revogação ou invalidação.
+## 13. Strict TDD Requirement
 
-Jobs de retenção apagam somente dados cobertos pela política. Eles registram execução e falha sem guardar conteúdo sensível.
+Every implementation phase strictly adheres to Test-Driven Development:
 
-O backend retorna a menor projeção necessária para cada papel. Dados de menores, residências e deslocamentos exigem testes negativos específicos de RLS.
+1. Write a failing test for a single behavior;
+2. Execute test and verify `RED` failure for expected reason;
+3. Implement minimal migration, RPC, policy, or code to resolve requirement;
+4. Execute test and verify `GREEN` success;
+5. Refactor while maintaining green test status;
+6. Proceed to next behavior.
 
-## 11. Estratégia de entrega
+## 14. Pending Service Decisions
 
-O projeto será dividido em seis ciclos:
+The following third-party integrations will be evaluated prior to their respective cycles:
 
-1. **Fundação multi-tenant:** ambiente Supabase local, Auth, `profiles`, `fleets`, associações, papéis, RLS e auditoria.
-2. **Marketplace e vínculos:** catálogo vazio, cidades e instituições cobertas, alunos, responsáveis, solicitações, convites, vínculos, RLS e auditoria. Preferências, capacidade e lista de espera ficaram fora do corte.
-3. **Frota e planejamento:** vans, capacidade, motoristas, rotas, pares de sentido, escolas, agendas e alunos programados.
-4. **Operação diária:** `service_days`, `trips`, passageiros, confirmações, substituições e estados operacionais.
-5. **Rastreamento e ocorrências:** Realtime privado, GPS, projeções seguras, incidentes e retenção.
-6. **Roteirização e notificações:** geocodificação, otimização, ETA, push, deduplicação e provedores externos.
-
-Cada ciclo terá uma especificação aprovada, plano de implementação, migrações, RLS e testes próprios. Nenhum ciclo posterior deve ampliar silenciosamente o escopo do anterior.
-
-## 12. Ciclos implementados localmente
-
-O primeiro ciclo entrega somente:
-
-- configuração local do Supabase;
-- migrações ordenadas;
-- criação automática do perfil;
-- criação transacional de frota e primeiro dono;
-- associações com múltiplos papéis;
-- helpers privados de autorização;
-- policies RLS;
-- auditoria básica;
-- dados fictícios locais;
-- documentação coerente.
-
-O Ciclo 2 acrescenta `schools`, coberturas comerciais, `students`, `student_guardians`, convites, solicitações, vínculos e fontes de papéis, com RLS, RPCs e auditoria sanitizada. O catálogo permanece sem dados reais e não há importador.
-
-Testes mínimos da fundação:
-
-- criação automática de perfil;
-- criação atômica de frota e dono;
-- múltiplos papéis e múltiplas frotas;
-- bloqueio de leitura e escrita entre tenants;
-- diferença de permissões entre dono e demais papéis;
-- bloqueio da remoção do último dono;
-- exigência de e-mail confirmado;
-- imutabilidade da auditoria;
-- rejeição de chamadas anônimas;
-- isolamento quando o usuário conhece UUIDs de outro tenant.
-
-## 13. TDD obrigatório
-
-Toda implementação segue uma sequência estrita e repetida:
-
-1. escrever um teste para um único comportamento;
-2. executar o teste e confirmar `RED` pela razão esperada;
-3. escrever a menor migração, função ou policy que resolva o comportamento;
-4. executar o teste e confirmar `GREEN`;
-5. refatorar mantendo todos os testes verdes;
-6. iniciar o próximo comportamento.
-
-O time não escreverá toda a implementação antes dos testes nem criará uma grande suíte vermelha de uma vez. Cada fatia deve produzir evidência de `RED` e `GREEN`.
-
-## 14. Decisões pendentes
-
-Estas decisões exigem pesquisa antes do ciclo correspondente:
-
-- API externa para catálogo de escolas e faculdades;
-- provedor de geocodificação, matriz, otimização e ETA;
-- provedor final de push, considerando suporte a Flutter e operação server-side;
-- frequência adaptativa do GPS e intervalo de persistência das amostras;
-- termos de retenção permanente conforme política de privacidade e requisitos legais.
-
-Os critérios já estão definidos. A pesquisa deverá priorizar fontes oficiais, cobertura no Brasil, segurança, limites, custo e licença. Nenhuma implementação deve fixar um provedor antes dessa decisão.
+- Official school/university catalog API data sources;
+- Geocoding, distance matrix, route optimization, and ETA provider API;
+- Server-side push notification provider (FCM / APNs / OneSignal);
+- GPS sampling rate and persistence interval strategy;
+- Data retention legal compliance policies.

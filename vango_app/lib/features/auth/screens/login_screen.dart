@@ -65,7 +65,7 @@ class _LoginScreenState extends State<LoginScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Login simulado com sucesso!',
+          'Simulated login successful!',
           style: AppTextStyles.bodySmall.copyWith(color: AppColors.textLight),
         ),
         backgroundColor: AppColors.successGreen,
@@ -78,21 +78,21 @@ class _LoginScreenState extends State<LoginScreen>
 
   String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Informe seu e-mail';
+      return 'Please enter your email';
     }
     final emailRegex = RegExp(r'^[\w\.\-]+@[\w\-]+\.\w{2,}$');
     if (!emailRegex.hasMatch(value.trim())) {
-      return 'E-mail inválido';
+      return 'Invalid email address';
     }
     return null;
   }
 
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) {
-      return 'Informe sua senha';
+      return 'Please enter your password';
     }
     if (value.length < 6) {
-      return 'A senha deve ter pelo menos 6 caracteres';
+      return 'Password must be at least 6 characters';
     }
     return null;
   }
@@ -125,10 +125,10 @@ class _LoginScreenState extends State<LoginScreen>
                   const SizedBox(height: 32),
 
                   // ── Title ─────────────────────────────────
-                  Text('Bem-vindo de volta!', style: AppTextStyles.heading2),
+                  Text('Welcome back!', style: AppTextStyles.heading2),
                   const SizedBox(height: 8),
                   Text(
-                    'Entre com sua conta para continuar',
+                    'Sign in to your account to continue',
                     style: AppTextStyles.subtitle,
                   ),
                   const SizedBox(height: 36),
@@ -136,8 +136,8 @@ class _LoginScreenState extends State<LoginScreen>
                   // ── Email field ───────────────────────────
                   VanGoTextField(
                     controller: _emailController,
-                    label: 'E-mail',
-                    hint: 'seu@email.com',
+                    label: 'Email',
+                    hint: 'you@email.com',
                     prefixIcon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
@@ -149,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen>
                   // ── Password field ────────────────────────
                   VanGoTextField(
                     controller: _passwordController,
-                    label: 'Senha',
+                    label: 'Password',
                     hint: '••••••',
                     prefixIcon: Icons.lock_outline_rounded,
                     isPassword: true,
@@ -173,7 +173,7 @@ class _LoginScreenState extends State<LoginScreen>
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       child: Text(
-                        'Esqueci minha senha',
+                        'Forgot password?',
                         style: AppTextStyles.caption.copyWith(
                           color: AppColors.primaryOrange,
                           fontWeight: FontWeight.w500,
@@ -185,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                   // ── Submit button ─────────────────────────
                   VanGoButton(
-                    text: 'Entrar',
+                    text: 'Sign In',
                     isLoading: _isLoading,
                     onPressed: _handleLogin,
                   ),
@@ -196,7 +196,7 @@ class _LoginScreenState extends State<LoginScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Não tem conta? ',
+                        "Don't have an account? ",
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.textMuted,
                         ),
@@ -208,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen>
                             AppRoutes.register,
                           );
                         },
-                        child: Text('Registrar-se', style: AppTextStyles.link),
+                        child: Text('Sign Up', style: AppTextStyles.link),
                       ),
                     ],
                   ),

@@ -7,7 +7,7 @@ void main() {
     await tester.pumpWidget(const VanGoApp());
 
     // Verify that the welcome screen loads with expected action buttons
-    expect(find.text('Entrar'), findsOneWidget);
-    expect(find.text('Criar Conta'), findsOneWidget);
+    expect(find.text('Sign In'), findsOneWidget);
+    expect(find.text('Create Account'), findsOneWidget);
   });
 }

@@ -65,7 +65,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Link de recuperação enviado para ${_emailController.text.trim()}',
+          'Recovery link sent to ${_emailController.text.trim()}',
           style: AppTextStyles.bodySmall.copyWith(color: AppColors.textLight),
         ),
         backgroundColor: AppColors.successGreen,
@@ -79,11 +79,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
   String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Informe seu e-mail';
+      return 'Please enter your email';
     }
     final emailRegex = RegExp(r'^[\w\.\-]+@[\w\-]+\.\w{2,}$');
     if (!emailRegex.hasMatch(value.trim())) {
-      return 'E-mail inválido';
+      return 'Invalid email address';
     }
     return null;
   }
@@ -142,14 +142,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
                   // ── Title ─────────────────────────────────
                   Text(
-                    _emailSent ? 'E-mail enviado!' : 'Recuperar senha',
+                    _emailSent ? 'Email sent!' : 'Reset password',
                     style: AppTextStyles.heading2,
                   ),
                   const SizedBox(height: 10),
                   Text(
                     _emailSent
-                        ? 'Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.'
-                        : 'Informe seu e-mail para receber o link de recuperação',
+                        ? 'Check your inbox and follow the instructions to reset your password.'
+                        : 'Enter your email address to receive a recovery link',
                     textAlign: TextAlign.center,
                     style: AppTextStyles.subtitle,
                   ),
@@ -159,8 +159,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                     // ── Email field ─────────────────────────
                     VanGoTextField(
                       controller: _emailController,
-                      label: 'E-mail',
-                      hint: 'seu@email.com',
+                      label: 'Email',
+                      hint: 'you@email.com',
                       prefixIcon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.done,
@@ -172,14 +172,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
                     // ── Submit button ───────────────────────
                     VanGoButton(
-                      text: 'Enviar link',
+                      text: 'Send recovery link',
                       isLoading: _isLoading,
                       onPressed: _handleSendLink,
                     ),
                   ] else ...[
                     // ── Back to Login button ────────────────
                     VanGoButton(
-                      text: 'Voltar ao Login',
+                      text: 'Back to Sign In',
                       onPressed: () => Navigator.pop(context),
                     ),
                     const SizedBox(height: 16),
@@ -189,7 +189,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                         _emailController.clear();
                       },
                       child: Text(
-                        'Enviar novamente',
+                        'Send again',
                         style: AppTextStyles.link,
                       ),
                     ),

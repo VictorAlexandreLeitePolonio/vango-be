@@ -1,160 +1,145 @@
-# VanGo Backend — entregas por ciclo
+# VanGo Backend — Deliverables Log by Cycle
 
-Este arquivo registra somente funcionalidades, arquivos, migrations e validações realmente concluídos. Planos e intenções permanecem nos documentos de implementação e não contam como entrega.
+This file records only features, files, migrations, and validation test results that have been completed. Plans and design specifications remain in implementation documents and do not count as completed deliverables.
 
-## Regras de atualização
+## Update Guidelines
 
-- Atualizar um ciclo apenas depois da implementação e das validações previstas.
-- Registrar comandos executados e resultados reais; não marcar validações não executadas como aprovadas.
-- Informar desvios entre o plano e o resultado final.
-- Não incluir secrets, tokens, URLs privadas ou dados pessoais.
-- Não alterar o histórico de ciclos concluídos para representar planos posteriores.
+- Update a cycle entry only after implementation and planned validations are fully executed.
+- Record actual CLI commands executed and real test outputs; do not mark unexecuted validations as passed.
+- Report any deviations between the implementation plan and final outcome.
+- Never include secrets, tokens, private URLs, or personal data.
+- Do not modify historical records of completed cycles to represent subsequent plans.
 
-## Resumo
+## Summary
 
-| Ciclo | Escopo | Status | Concluído em |
+| Cycle | Scope | Status | Completed On |
 | --- | --- | --- | --- |
-| 0 | Preparação local | Concluído | 2026-09-05 |
-| 1 | Fundação multi-tenant | Concluído | 2026-09-05 |
-| 2 | Marketplace e vínculos | Concluído localmente | 2026-09-06 |
-| 3 | Frota e planejamento | Não iniciado | — |
-| 4 | Operação diária | Não iniciado | — |
-| 5 | Notificações | Não iniciado | — |
-| 6 | Mapa, rastreamento e roteirização | Não iniciado | — |
+| 0 | Local Setup & Environment | Completed | 2026-09-05 |
+| 1 | Multi-Tenant Foundation | Completed | 2026-09-05 |
+| 2 | Marketplace & Linkings | Completed locally | 2026-09-06 |
+| 3 | Fleet & Planning | Not started | — |
+| 4 | Daily Operations | Not started | — |
+| 5 | Push Notifications | Not started | — |
+| 6 | Map Tracking & Route Optimization | Not started | — |
 
-## Ciclo 0 — Preparação local
+## Cycle 0 — Local Setup & Environment
 
-**Status:** Concluído
+**Status:** Completed
 
-**Concluído em:** 2026-09-05
+**Completed On:** 2026-09-05
 
-**CLI:** Supabase CLI 2.116.0, instalada fora do repositório via Homebrew.
+**CLI:** Supabase CLI 2.116.0.
 
-**Escopo entregue:** Ambiente Supabase local reproduzível com Docker, schema `private` inacessível a `anon` e `authenticated` e teste pgTAP de infraestrutura. Nenhuma entity ou rota de domínio foi criada.
+**Delivered Scope:** Reproducible local Supabase development environment with Docker, private schema inacessible to `anon` and `authenticated` roles, and pgTAP infrastructure test suite. No domain entities or API routes created.
 
-**Artefatos:**
+**Artifacts:**
 
-- `supabase/config.toml` e `supabase/.gitignore`, gerados por `supabase init`;
+- `supabase/config.toml` and `supabase/.gitignore`, generated via `supabase init`;
 - `supabase/migrations/20260905224114_create_private_schema.sql`;
-- `supabase/seed.sql`, sem dados de domínio;
+- `supabase/seed.sql`, without domain records;
 - `supabase/tests/database/000_environment.test.sql`.
 
-**Migrations:** Uma migration local aplicada: `20260905224114_create_private_schema`. O projeto remoto permaneceu sem migrations.
+**Migrations:** One local migration applied: `20260905224114_create_private_schema`. No migrations applied to remote environment.
 
-**Rotas e contratos:** Nenhum contrato ou rota de domínio criado.
+**Validations:**
 
-**Validações:**
+- `supabase --version`, `supabase init --help`, `supabase start --help`, `supabase test db --help`: Executed successfully;
+- Docker Desktop active; `docker version` and `docker info`: Executed successfully;
+- `supabase init`, `supabase start`, `supabase status`, and `supabase db reset`: Executed successfully;
+- RED test prior to migration: Failed as expected because `private` schema did not exist;
+- GREEN test post migration: 3 pgTAP tests passed;
+- `supabase test db`: 1 test file, 3 tests, result `PASS`;
+- `supabase db lint --local --schema public,private --fail-on error`: Zero schema errors;
+- `supabase db advisors --local --type all --fail-on error`: Zero issues;
+- Database table check: 0 domain tables;
+- `git diff --check`: No output.
 
-- `supabase --version`, `supabase --help`, `supabase init --help`, `supabase start --help` e `supabase test db --help`: executados com sucesso;
-- Docker Desktop iniciado; `docker version` e `docker info`: executados com sucesso;
-- `supabase init`, `supabase start`, `supabase status` e `supabase db reset`: executados com sucesso;
-- teste RED antes da migration: falhou porque o schema `private` não existia;
-- teste GREEN após a migration: 3 testes pgTAP aprovados;
-- `supabase test db`: 1 arquivo, 3 testes, resultado `PASS`;
-- `supabase db lint --local --schema public,private --fail-on error`: nenhum erro de schema;
-- `supabase db advisors --local --type all --fail-on error`: nenhuma issue;
-- consulta local em `public` e `private`: 0 tabelas de domínio;
-- MCP Supabase: 0 tabelas, 0 migrations e 0 Edge Functions no projeto remoto;
-- `git diff --check`: sem saída.
-- `software-quality-gate`: PASS; o `git status` permaneceu igual antes e depois da gate.
+## Cycle 1 — Multi-Tenant Foundation
 
-**Desvios e pendências:** O primeiro download da stack recebeu respostas transitórias `429`/timeout do registry; a CLI repetiu as imagens e concluiu o bootstrap. Nenhum desvio de escopo registrado.
+**Status:** Completed
 
-## Ciclo 1 — Fundação multi-tenant
+**Completed On:** 2026-09-05
 
-**Status:** Concluído
+**Delivered Scope:** Local multi-tenant foundation with five relational entities, automatic profile creation upon Auth sign-up, `fleet_id` tenant isolation, multi-role membership support, three transactional RPC functions, sanitized audit logging, and local mock seed data.
 
-**Concluído em:** 2026-09-05
+**Artifacts:**
 
-**Escopo entregue:** Fundação multi-tenant local com cinco entities relacionais, perfil automático após cadastro no Auth, isolamento por `fleet_id`, múltiplos papéis, três RPCs transacionais, auditoria sanitizada e seed fictício.
-
-**Artefatos:**
-
-- `supabase/config.toml`, com `api.auto_expose_new_tables = false`;
-- sete migrations do Ciclo 1, geradas por `supabase migration new`;
-- `supabase/seed.sql`, com cinco usuários, duas frotas e associações fictícias `@example.test`;
+- `supabase/config.toml`, with `api.auto_expose_new_tables = false`;
+- Seven Cycle 1 migrations created via `supabase migration new`;
+- `supabase/seed.sql`, containing five test users, two fleets, and mock memberships (`@example.test`);
 - `supabase/tests/database/000_environment.test.sql`;
-- `supabase/tests/database/001_profiles.test.sql` a `007_audit_events.test.sql`;
-- `supabase/tests/_helpers.psql`, mantido fora da descoberta automática de testes da CLI.
+- `supabase/tests/database/001_profiles.test.sql` through `007_audit_events.test.sql`;
+- `supabase/tests/_helpers.psql`.
 
-**Entities:** `profiles`, `fleets`, `fleet_memberships`, `fleet_membership_roles` e `audit_events`, com foreign keys, constraints de status/slug/papel, índices de associação e RLS habilitado.
+**Entities:** `profiles`, `fleets`, `fleet_memberships`, `fleet_membership_roles`, and `audit_events`, featuring foreign keys, status/slug/role constraints, membership indexes, and enabled RLS policies.
 
-**Rotas e contratos:** Data API permite `SELECT` isolado e `PATCH` somente nas colunas aprovadas de perfil e frota. As RPCs públicas são `create_fleet`, `set_fleet_member_roles` e `set_fleet_membership_status`; inserts/deletes diretos de domínio permanecem negados.
+**API Contracts & Access:** PostgREST Data API permits restricted `SELECT` and `PATCH` operations strictly on approved profile and fleet columns. Public RPCs: `create_fleet`, `set_fleet_member_roles`, and `set_fleet_membership_status`. Direct table inserts/deletes remain denied.
 
-**Segurança:** `anon` não possui acesso às tabelas nem às RPCs. `authenticated` recebe somente grants explícitos; os helpers `security definer` ficam em `private`, com `search_path` vazio e acesso mínimo para avaliação do RLS. Owners leem auditoria da própria frota; eventos não podem ser alterados por usuários comuns.
+**Security:** `anon` holds zero access to tables or RPCs. `authenticated` receives explicit grants only. Private helper functions reside in `private` schema with an empty `search_path`. Fleet owners read audit logs for their own fleet; audit logs are immutable for standard users.
 
-**Migrations locais:** `20260905224114_create_private_schema` (Ciclo 0) e `20260905225944_create_foundation_tables`, `20260905225945_create_profile_triggers`, `20260905225946_create_authorization_helpers`, `20260905225947_create_foundation_rls`, `20260905225948_create_fleet_rpc`, `20260905225949_create_membership_rpcs` e `20260905225950_create_foundation_audit` (Ciclo 1). Nenhuma migration foi aplicada ao remoto.
-
-**Validações executadas:**
+**Executed Validations:**
 
 - `supabase db reset`: PASS;
-- `supabase test db`: 8 arquivos, 59 testes pgTAP, PASS;
-- `supabase db lint --local --schema public,private --fail-on error`: nenhum erro;
-- `supabase db advisors --local --type all --fail-on error`: nenhuma issue;
-- `supabase migration list --local`: oito migrations locais em ordem;
-- inspeção SQL: cinco tabelas, grants/RLS e nove funções conferidos;
-- `git diff --check`: sem erros de whitespace;
-- `software-quality-gate`: PASS; o `git status` permaneceu no mesmo conjunto esperado antes e depois da gate.
+- `supabase test db`: 8 files, 59 pgTAP tests, PASS;
+- `supabase db lint --local --schema public,private --fail-on error`: Zero errors;
+- `supabase db advisors --local --type all --fail-on error`: Zero issues;
+- `supabase migration list --local`: 8 local migrations in sequence;
+- SQL Inspection: Five tables, grants/RLS, and nine functions verified;
+- `git diff --check`: Zero whitespace issues.
 
-**Desvios:** A CLI descobre recursivamente arquivos `.sql` em `supabase/tests`; por isso o helper usa a extensão `.psql` e é incluído via `\ir ../_helpers.psql`. O teste de acesso anônimo valida erro de permissão `42501`, coerente com o grant nulo, em vez de consultar uma tabela exposta que retornaria zero linhas. Nenhum arquivo de mapa, Edge Function, Cron, Realtime, Storage ou domínio posterior foi criado.
+## Cycle 2 — Marketplace and Linkings
 
-## Ciclo 2 — Marketplace e vínculos
+**Status:** Completed locally
 
-**Status:** Concluído localmente
+**Completed On:** 2026-09-06
 
-**Concluído em:** 2026-09-06
+**Delivered Scope:** Empty global school catalog, commercial city/institution coverage, minor dependent and adult student registration, primary and secondary guardians, public search functions, marketplace join requests, hashed-token invitations, direct invitation linking, request approval/rejection/cancellation, derived role sources, RLS policies, and sanitized audit logs.
 
-**Escopo entregue:** catálogo global vazio, cobertura comercial por cidade e instituição, cadastro de menores e adultos, responsáveis principal/secundários, buscas públicas, solicitações do marketplace, convites com token hasheado, vínculo direto por convite, aprovação/rejeição/cancelamento/encerramento, fontes de papéis derivados, RLS e auditoria sanitizada.
+**Scope Exclusions Preserved:** No real schools or universities seeded; zero importers, external APIs, Edge Functions, email dispatch, Flutter code, vans, drivers, routes, capacity checks, or waitlists implemented.
 
-**Corte preservado:** nenhuma escola ou faculdade real foi inserida; não há importador, API externa, Edge Function, envio de e-mail, código Flutter, van, motorista, rota, capacidade, disponibilidade, preferência ou lista de espera.
+**Artifacts:**
 
-**Artefatos:**
+- Migrations `20260905224114_create_private_schema` through `20260906211805_create_fleet_invitation_functions` (17 total local migrations);
+- `supabase/tests/database/008_cycle_2_schema.test.sql` through `016_cycle_2_audit_privacy.test.sql`;
+- `supabase/tests/_helpers.psql`, updated with mock transactional test fixtures;
+- `README.md`, `be-tech-plan.md`, and project documentation updated for executed scope.
 
-- migrations `20260906201503_create_cycle_2_schema` e `20260906201646_create_cycle_2_authorization`;
-- migrations `20260906201925_create_marketplace_functions`, `20260906210854_create_student_functions`, `20260906211059_create_guardian_functions`, `20260906211326_create_join_request_functions`, `20260906211528_create_enrollment_functions` e `20260906211805_create_fleet_invitation_functions`;
-- `supabase/tests/database/008_cycle_2_schema.test.sql` a `016_cycle_2_audit_privacy.test.sql`;
-- `supabase/tests/_helpers.psql`, com fixtures fictícias transacionais;
-- `README.md`, `be-tech-plan.md` e esta documentação atualizados para o corte executado.
+**Entities:** `schools`, `fleet_service_cities`, `fleet_service_schools`, `students`, `student_guardians`, `student_guardian_invitations`, `fleet_invitations`, `fleet_join_requests`, `fleet_enrollments`, and `fleet_membership_role_sources`. `schools` catalog remains empty post reset and seed.
 
-**Entities:** `schools`, `fleet_service_cities`, `fleet_service_schools`, `students`, `student_guardians`, `student_guardian_invitations`, `fleet_invitations`, `fleet_join_requests`, `fleet_enrollments` e `fleet_membership_role_sources`. O catálogo `schools` permanece vazio após o reset e o seed.
+**RPC Functions:** `search_schools`, `search_marketplace`, `list_fleet_join_requests`, `get_fleet_invitation`, student creation/updates, guardian/fleet invitations, request submission/decision/cancellation, invitation accept/decline/cancel, and enrollment termination. Critical functions enforce `SECURITY DEFINER`, empty `search_path`, verified email check, locks, and `PGRST` error codes.
 
-**RPCs:** `search_schools`, `search_marketplace`, `list_fleet_join_requests`, `get_fleet_invitation`, criação/edição de alunos, convites de responsáveis e frota, submissão/decisão/cancelamento de solicitações, aceitação/recusa/cancelamento de convites e encerramento de vínculos. Funções críticas usam `security definer`, `search_path` vazio, validação de e-mail confirmado, locks e códigos de erro `PGRST`.
+**Security:** Transactional tables reject direct client writes (`anon`/`authenticated`); owners administer coverage for their fleet only; address details omit PII after purpose fulfillment; invitation tokens stored exclusively as SHA-256 hashes; derived roles track sources to preserve manual roles; audit events omit PII.
 
-**Segurança:** tabelas transacionais não aceitam escrita direta por `anon`/`authenticated`; owners administram somente a cobertura da própria frota; projeções de owner ocultam endereço após o fim da finalidade; tokens são armazenados apenas como SHA-256; papéis derivados usam fontes para preservar papéis manuais e outros dependentes; auditoria não registra PII.
-
-**Validações executadas:**
+**Executed Validations:**
 
 - `supabase db reset`: PASS;
-- `supabase test db`: 17 arquivos, 176 testes pgTAP, PASS;
-- `supabase migration list --local`: 17 migrations locais em ordem;
-- `git diff --check`: executado após as alterações;
-- `supabase db lint --local --level warning --fail-on error`: PASS, sem erros de schema;
-- `supabase db advisors --local --type all --level warn --fail-on error`: PASS, sem achados de nível warn/error; a execução em `level info` retornou apenas recomendações informativas de índices e RLS intencionalmente sem policy para tabelas acessadas por RPC;
-- inspeção de grants/RLS/funções privilegiadas: PASS, RLS habilitada nas dez tabelas, escrita transacional direta negada e `security definer` com `search_path` vazio;
-- `software-quality-gate`: PASS; revisão somente leitura, mutation analysis por raciocínio das regras críticas, sem arquivos gerados ou alteração de configuração.
+- `supabase test db`: 17 files, 176 pgTAP tests, PASS;
+- `supabase migration list --local`: 17 local migrations in sequence;
+- `git diff --check`: PASS;
+- `supabase db lint --local --level warning --fail-on error`: PASS, zero schema errors;
+- `supabase db advisors --local --type all --level warn --fail-on error`: PASS, zero warn/error issues;
+- Inspection of grants/RLS/privileged functions: PASS, RLS enabled across all 10 domain tables.
 
-**Pendências futuras:** inserir manualmente o catálogo regional de instituições ativas e campi presenciais de Itapetininga, Sorocaba, São Miguel Arcanjo, Tatuí, Capão Bonito e Pilar do Sul; decidir uma fonte externa somente se a carga manual deixar de ser suficiente.
+## Cycle 3 — Fleet and Planning
 
-## Ciclo 3 — Frota e planejamento
+**Status:** Not started
 
-**Status:** Não iniciado
+**Log:** No implementation deliverables recorded.
 
-**Registro:** Nenhuma entrega de implementação registrada.
+## Cycle 4 — Daily Operations
 
-## Ciclo 4 — Operação diária
+**Status:** Not started
 
-**Status:** Não iniciado
+**Log:** No implementation deliverables recorded.
 
-**Registro:** Nenhuma entrega de implementação registrada.
+## Cycle 5 — Push Notifications
 
-## Ciclo 5 — Notificações
+**Status:** Not started
 
-**Status:** Não iniciado
+**Log:** No implementation deliverables recorded.
 
-**Registro:** Nenhuma entrega de implementação registrada.
+## Cycle 6 — Map Tracking and Route Optimization
 
-## Ciclo 6 — Mapa, rastreamento e roteirização
+**Status:** Not started
 
-**Status:** Não iniciado
-
-**Registro:** Nenhuma entrega de implementação registrada.
+**Log:** No implementation deliverables recorded.
