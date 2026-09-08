@@ -1,35 +1,42 @@
 # VanGo — diretrizes de desenvolvimento
 
-Este documento define como o backend será implementado. O MVP usa Supabase Auth, PostgreSQL, RLS, Database Functions, Realtime, Storage, Cron e Edge Functions. Não adicione um servidor Node.js ou uma camada paralela de autenticação sem uma nova decisão arquitetural aprovada.
+Este documento define as regras inegociáveis de engenharia para todo o projeto VanGo (Backend Supabase e Frontend Flutter). Toda IA (agente de código) ou desenvolvedor humano **DEVE ler e seguir estritamente estas diretrizes antes de planejar e antes de implementar qualquer código no repositório**. Não adicione um servidor Node.js ou uma camada paralela de autenticação sem uma nova decisão arquitetural aprovada.
 
 ## 1. Princípios
 
+- **TDD Obrigatório:** toda mudança ou adição de comportamento inicia obrigatoriamente por um teste automatizado que falha antes de existir o código produtivo.
+- **Idioma estritamente em Inglês:** todo código-fonte, nomes de variáveis, classes, funções, comentários, documentação técnica inline, mensagens de commit e descrições de testes devem estar em **Inglês**.
+- **Qualidade estática e cobertura:** nenhum código é aceito sem validação de lint (zero warnings e zero errors) e sem geração de relatório de cobertura de testes (coverage).
 - Faça a menor alteração segura para o comportamento em desenvolvimento.
 - Preserve o contrato aprovado e o isolamento multi-tenant.
-- Use nomes claros e mantenha cada migração, função e Edge Function com uma responsabilidade.
+- Use nomes claros e mantenha cada arquivo, classe, migração e função com uma única responsabilidade.
 - Evite abstrações antecipadas, duplicação e lógica de autorização no cliente.
 - Trate falhas de forma explícita. Não use `catch` vazio nem esconda erros.
 - Não misture refactors sem relação com a entrega atual.
 - Registre toda decisão que altere domínio, segurança ou contrato.
 
-## 2. TDD estrito
+## 2. TDD estrito (Test-Driven Development)
 
-Toda alteração de comportamento começa por um teste. O ciclo obrigatório é:
+Toda alteração de comportamento em qualquer camada do sistema — **Banco de dados/RLS, Edge Functions ou Frontend Flutter** — começa obrigatoriamente por um teste automatizado. O ciclo inegociável é:
 
-1. **Red:** escreva um teste pequeno e execute-o. Confirme que ele falha pela ausência exata do comportamento esperado.
-2. **Green:** implemente somente o necessário para o teste passar.
-3. **Refactor:** melhore nomes e estrutura com todos os testes verdes.
-4. Repita o ciclo para o próximo comportamento.
+1. **Red:** escreva um teste unitário, de widget ou de integração focado e execute-o. Confirme que ele falha especificamente pela ausência exata do comportamento esperado (não por erro de sintaxe ou compilação acidental).
+2. **Green:** implemente somente o código estritamente necessário para fazer o teste passar.
+3. **Refactor:** melhore legibilidade, arquitetura, nomes e tipagem mantendo todos os testes verdes.
+4. Repita o ciclo para o próximo comportamento ou fatia vertical.
 
-Não escreva a implementação antes do teste. Não crie uma grande suíte vermelha e implemente tudo depois. Trabalhe em fatias verticais pequenas e guarde evidência de cada `RED` e `GREEN` no relato da tarefa.
+Regras inegociáveis do TDD:
+- **Proibido codificar antes do teste:** Não escreva a implementação antes de ter o teste vermelho executado e confirmado.
+- **Sem suítes monolíticas vermelhas:** Não crie uma bateria gigante de testes vermelhos para implementar tudo depois. Trabalhe em pequenos passos incrementais (*baby steps*).
+- **Evidência no relato:** Guarde evidência do ciclo `RED` e `GREEN` nos relatórios de execução da IA ou nos PRs.
+- **Bugs:** Toda correção de defeito inicia com a escrita de um teste que reproduz o bug antes de corrigi-lo.
+- **RLS e Políticas:** Mudanças em RLS começam com um teste negativo de acesso e um teste positivo do papel autorizado.
+- **Flutter:** Regras de negócio (Controllers, Blocs, Cubits, Repositories, UseCases) e comportamentos de Widgets devem nascer a partir de testes automatizados (`flutter test`).
 
-Correções de bug começam com um teste que reproduz o defeito. Mudanças em RLS começam com um teste negativo de acesso e um teste positivo do papel autorizado.
+## 3. Estratégia de testes, Lint e Cobertura
 
-## 3. Estratégia de testes
+### 3.1 Banco e RLS (PostgreSQL)
 
-### 3.1 Banco e RLS
-
-Os testes de banco devem cobrir:
+Os testes de banco (via pgTAP) devem cobrir:
 
 - constraints e integridade referencial;
 - transações e concorrência relevante;
@@ -43,7 +50,7 @@ Os testes de banco devem cobrir:
 
 Cada tabela com `fleet_id` precisa de teste que use ao menos dois tenants. Um teste que cobre somente o caminho autorizado não valida isolamento.
 
-### 3.2 Edge Functions
+### 3.2 Edge Functions (Deno / TypeScript)
 
 Edge Functions devem ter testes unitários para transformação, validação e tratamento de falhas. Integrações externas usam fakes ou servidores controlados nos testes; a suíte comum não consome APIs pagas.
 
@@ -53,19 +60,52 @@ Teste timeouts, resposta inválida, limite do provedor, repetição idempotente 
 
 Teste a autorização do canal privado, o bloqueio fora de uma viagem ativa e a rejeição de um motorista não atribuído. Jobs agendados precisam ser idempotentes e testados como funções invocáveis sem esperar o relógio real.
 
-### 3.4 Validação final
+### 3.4 Flutter e Dart (Frontend Mobile)
 
-Antes de declarar uma etapa pronta:
+No diretório `vango_app`, os testes devem abranger:
 
-- execute toda a suíte relevante;
-- execute validações estáticas disponíveis;
-- confira migrações do zero;
-- procure logs, comentários temporários e segredos;
+- **Testes Unitários (`test/unit/...`):** Regras de validação, modelos de domínio, mapeamento JSON/DTO, serviços de API, repositórios e gerenciamento de estado (Bloc/Cubit/Notifier).
+- **Testes de Widget (`test/widget/...`):** Renderização de componentes compartilhados, estados visuais de formulários, validações dinâmicas de campos, respostas a cliques e transições de tela.
+- **Testes de Integração (`integration_test/...`):** Fluxos críticos ponta a ponta (como fluxo de autenticação e alternância de telas).
+
+### 3.5 Análise Estática e Lint (Obrigatório após implementação)
+
+Ao término de qualquer implementação ou alteração, a suíte de lint deve ser executada e passar com **tolerância ZERO** para erros e avisos:
+
+- **Flutter / Dart:**
+  - Executar: `flutter analyze`
+  - Requisito: **0 issues found** (sem erros, avisos ou lints pendentes).
+  - Formatação: Executar `dart format --output=none --set-exit-if-changed .` para garantir conformidade total com o guia oficial de estilo Dart.
+- **Supabase / Edge Functions:**
+  - Executar: `deno lint` e `deno check` nas funções alteradas.
+- **Banco de Dados:**
+  - Executar: `supabase db lint` antes de submeter migrações.
+
+### 3.6 Cobertura de Código (Test Coverage)
+
+Todo novo comportamento deve possuir cobertura de testes automatizados com relatório gerado:
+
+- **Flutter / Dart:**
+  - Executar: `flutter test --coverage`
+  - Saída: arquivo padronizado `coverage/lcov.info`.
+  - **Meta mínima:** mínimo de **80% de cobertura** nas camadas de lógica de negócio (`domain/`, `core/utils/`, `blocs/`, `cubits/`, `services/`, `repositories/`).
+  - Para validação rápida local de limites de cobertura: recomenda-se o uso de ferramentas como `lcov` (`genhtml coverage/lcov.info -o coverage/html`) ou utilitários Dart como `coverde check 80`.
+- **Edge Functions:**
+  - Executar: `deno test --coverage=cov_profile`.
+
+### 3.7 Validação final
+
+Antes de declarar qualquer etapa concluída:
+
+- execute toda a suíte de testes relevante (`flutter test`, `deno test`, testes pgTAP);
+- execute a análise estática (`flutter analyze`, `deno lint`);
+- verifique a cobertura de testes e garanta que novas lógicas estejam cobertas;
+- execute a checagem de formatação (`dart format`);
+- confira migrações do zero se houver mudanças de schema;
+- procure por logs temporários, segredos e comentários desnecessários;
+- garanta que todo código e comentários novos estejam em **Inglês**;
 - confira `git diff --check`;
-- confira `git status` antes e depois da quality gate;
-- execute a skill `software-quality-gate` sem permitir alterações no repositório.
-
-A quality gate não pode instalar dependências, alterar manifests ou lockfiles, criar testes, gravar configuração ou deixar arquivos gerados no repositório. Toda ferramenta auxiliar deve rodar fora do projeto.
+- confira `git status` antes e depois da finalização.
 
 ## 4. Migrações PostgreSQL
 
@@ -207,19 +247,44 @@ Uma revisão deve priorizar:
 
 Evite comentários cosméticos sem efeito prático.
 
-## 13. Definição de pronto
+## 13. Definição de pronto (Definition of Done)
 
-Uma etapa só está pronta quando:
+Uma etapa de implementação só é considerada concluída e pronta para PR/merge quando:
 
-- todos os comportamentos começaram por um teste vermelho válido;
-- testes focados e suíte completa passam;
-- migrações funcionam em banco limpo;
-- RLS tem cenários positivos e negativos;
-- erros estão tratados e tipados no contrato;
-- nenhum segredo, log temporário, código comentado ou TODO sem referência permanece;
-- documentação e `.env.example` refletem novas configurações;
-- `git diff --check` passa;
-- a quality gate termina sem modificar o repositório;
-- `git status` final contém apenas mudanças esperadas.
+- **TDD executado com evidência:** todos os novos comportamentos começaram por um teste vermelho válido (`RED`) antes da implementação produtiva (`GREEN`);
+- **Testes passam integralmente:** testes unitários, de widgets e de integração passam com 100% de sucesso (`flutter test`, `deno test`, testes pgTAP);
+- **Lint estrito verificado:** `flutter analyze` reporta 0 issues (zero avisos e zero erros) e `deno lint` passa sem inconformidades;
+- **Formatação conferida:** `dart format` validado sem alterações pendentes;
+- **Cobertura de testes gerada:** `flutter test --coverage` (ou `deno test --coverage`) executado com a meta mínima de 80% atendida nas regras de negócio;
+- **Idioma 100% em Inglês:** todo o código, nomes de arquivos, identificadores, comentários e mensagens de commit estão estritamente em Inglês;
+- **Migrações idempotentes e limpas:** migrações funcionam a partir de um banco zerado;
+- **RLS completa:** RLS possui cenários validados de autorização e negação entre tenants;
+- **Erros tipados e tratados:** falhas mapeadas em contratos e códigos previsíveis;
+- **Limpeza de código:** nenhum segredo, log temporário, código comentado ou TODO sem referência permanece;
+- **Git limpo:** `git diff --check` passa e `git status` final contém apenas os arquivos previstos pela tarefa.
 
 Não chame uma implementação de concluída sem essas evidências.
+
+## 14. Padrão de Idioma (English-Only Policy)
+
+Todo o repositório deve manter um padrão internacional de código. É **estritamente obrigatório** o uso de **Inglês** nos seguintes escopos:
+
+1. **Código-fonte:**
+   - Nomes de arquivos e pastas (`user_repository.dart`, `login_screen.dart`);
+   - Nomes de classes, métodos, funções, variáveis e constantes (`class VehicleTracker`, `fetchActiveRoutes()`, `final String userEmail`);
+   - Schemas de banco de dados, tabelas, colunas e triggers PostgreSQL (`fleet_id`, `created_at`, `is_active`);
+   - Nomes de rotas e parâmetros.
+
+2. **Comentários e Documentação de Código:**
+   - Todos os comentários de linha (`//`), de bloco (`/* */`) e de documentação (`///`) devem ser redigidos exclusivamente em **Inglês**;
+   - Anotações de migrações e comentários SQL (`--`) em Inglês.
+
+3. **Mensagens de Commit e PRs:**
+   - Mensagens de commit no padrão Conventional Commits em Inglês (exemplo: `feat(auth): add email and password validation rules`, `test(widget): add widget test for custom text field`);
+   - Títulos de Pull Requests e descrições técnicas de código em Inglês.
+
+4. **Testes Automatizados:**
+   - Descrições de grupos (`group('AuthRepository', () { ... })`) e testes (`test('should return user when credentials are valid', ...)` ou `testWidgets('renders login button disabled when form is empty', ...)`).
+
+> **Observação sobre textos da interface (UI Copy):**
+> Textos exibidos na tela para os usuários finais brasileiros no app (labels, placeholders, mensagens ao usuário) podem estar em Português (pt-BR) diretamente ou via arquivos de internacionalização (l10n/i18n). No entanto, as chaves identificadoras e a lógica de internacionalização no código devem permanecer sempre em Inglês (exemplo: `AppStrings.loginWelcomeMessage`).
