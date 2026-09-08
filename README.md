@@ -4,7 +4,7 @@ Backend do VanGo, um aplicativo mobile em Flutter para gestão de transporte esc
 
 ## Status do repositório
 
-O projeto possui um ambiente Supabase local reproduzível e os Ciclos 1 e 2 implementados localmente. O catálogo de instituições permanece vazio por decisão de escopo; mapa e domínios operacionais continuam planejados para ciclos posteriores.
+O backend dos Ciclos 0–5 e a parte do Ciclo 6 independente de provedor estão implementados e validados no Supabase local. O catálogo permanece vazio. Configuração FCM/dispositivos e integração do provedor de mapas/ETA ainda estão pendentes; veja o registro de publicação e validações em [deliverables.md](./deliverables.md).
 
 O Ciclo 2 entrega schema, RLS, buscas públicas e RPCs para alunos, responsáveis, solicitações, convites e vínculos. Não há importador, integração externa, carga de escolas reais, envio de e-mail ou código Flutter.
 
@@ -52,6 +52,8 @@ O responsável principal cria menores e o aluno adulto cria o próprio registro.
 
 Owners também podem convidar responsáveis ou alunos adultos. O Flutter preserva o token no callback de cadastro/login; o backend guarda somente o hash SHA-256 e aceita o convite apenas para o mesmo e-mail confirmado. Responsáveis secundários recebem acesso derivado aos vínculos ativos do dependente.
 
+A aprovação exige alocação integral das vagas na mesma transação; aceitar convite cria pedido pendente. Pedidos novos e alterações disputam vagas por antiguidade entre os integralmente compatíveis, com aceite/recusa pelo dono.
+
 O catálogo `schools` não contém dados reais neste ciclo. A carga regional futura será inserida diretamente no Supabase, sem importador ou API definida.
 
 ### Frota e rotas
@@ -95,13 +97,13 @@ Mudanças de estado registram horário e, quando aplicável, localização. QR C
 
 O rastreamento começa quando o motorista inicia a `trip` e termina quando a conclui ou cancela. O dono acompanha todas as viagens ativas da própria frota.
 
-Responsáveis e alunos adultos acompanham somente viagens nas quais o aluno está confirmado. Eles recebem a posição atual da van, a escola, o ETA, o próprio ponto e um trajeto público aproximado. O backend nunca envia endereços, identidades, pontos ou a geometria completa que possa revelar a casa de outro aluno.
+Responsáveis e alunos adultos acompanham somente viagens nas quais o aluno está confirmado, até seu desembarque ou registro de ausência. Outro dependente elegível mantém o acesso do responsável. Eles recebem posição atual, escola, ETA e próprio ponto; qualquer representação de trajeto deve preservar a privacidade. O backend nunca envia endereços, identidades, pontos ou a geometria completa que possa revelar a casa de outro aluno.
 
 Os pontos brutos de GPS permanecem por 30 dias. Resumos de viagem, distância, duração, horários, atrasos, ocorrências, embarques, desembarques e eventos de auditoria permanecem sem prazo de expiração definido.
 
 ### Roteirização
 
-A rota-base será recalculada quando alunos, endereços, escolas ou atribuições mudarem. Criar a viagem diária não chama o provedor de rotas. No encerramento das confirmações, o sistema recalcula somente se a lista de passageiros mudou. Incidentes podem disparar um novo cálculo excepcional.
+A rota-base será recalculada quando alunos, endereços, escolas ou atribuições mudarem. Criar a viagem diária não chama o provedor de rotas. No encerramento das confirmações, o sistema compara a revisão completa das entradas, não apenas os passageiros. Mudanças cadastrais valem na próxima viagem não iniciada, preservando o percurso da ativa. Incidentes podem disparar um novo cálculo excepcional autorizado.
 
 O MVP considera até 30 alunos por van, mais partida e escolas. A escolha do provedor deverá verificar limites de paradas, cobertura, ETA e custo. Se uma chamada não aceitar todos os pontos, o serviço dividirá o cálculo sem alterar o modelo de domínio.
 
@@ -141,14 +143,25 @@ Regras centrais:
 
 1. **Fundação multi-tenant:** Supabase local, Auth, perfis, frotas, associações, múltiplos papéis, RLS e auditoria — concluída localmente no Ciclo 1.
 2. **Marketplace e vínculos:** catálogo vazio, cobertura comercial, alunos, responsáveis, solicitações, convites, vínculos, privacidade e auditoria — concluído localmente no Ciclo 2. Preferências, capacidade e lista de espera ficaram fora do corte.
-3. **Frota e planejamento:** vans, capacidade, motoristas, rotas, escolas ordenadas, agendas e atribuições.
-4. **Operação diária:** dias de serviço, viagens, confirmações, substituições e presença.
-5. **Rastreamento e ocorrências:** Realtime privado, GPS, visibilidade segura, desvios, atrasos e retenção.
-6. **Roteirização e notificações:** otimização, ETA, geocodificação, push e integrações externas.
+3. **Frota e planejamento:** vans, capacidade, motoristas, rotas, escolas ordenadas, agendas, reservas, fila e alterações de programação.
+4. **Operação diária:** calendário, dias de serviço, viagens, confirmações, substituições, presença e ocorrências.
+5. **Notificações:** caixa de avisos com leitura, push, eventos operacionais, mensagens unidirecionais, deduplicação e validade de alertas.
+6. **Mapa, rastreamento e roteirização:** GPS, Realtime privado, sincronização offline, visibilidade segura, retenção, otimização, ETA e geocodificação; integração dos alertas de proximidade com o Ciclo 5.
 
-Cada etapa terá especificação e plano próprios. A implementação começará pela fundação e seguirá TDD estrito.
+Cada etapa possui especificação, plano, migrations e testes. Os Ciclos 3–6 foram desenvolvidos com regressões RED/GREEN e validação integrada.
+
+Os planos dos ciclos restantes incluem preparação e publicação em produção, usando o ambiente local como homologação, sem staging remoto. A integração prevista é Flutter iOS e Android, com push via Firebase Cloud Messaging. A escolha e o orçamento do provedor de mapas e rotas estão em espera; a publicação do escopo completo do Ciclo 6 depende dessa definição. Os ciclos anteriores continuam registrados como entregas locais, sem presumir implantação remota.
 
 ## Documentação
+
+As specs foram aprovadas em 2026-09-07. Os planos registram contratos e tarefas; [deliverables.md](./deliverables.md) distingue a implementação validada das integrações externas pendentes.
+
+| Ciclo | Spec | Implementation plan |
+| --- | --- | --- |
+| 3 | [Frota e planejamento](./docs/superpowers/specs/2026-09-07-ciclo-3-frota-planejamento-design.md) | [Plano do Ciclo 3](./docs/superpowers/plans/2026-09-07-ciclo-3-frota-planejamento.md) |
+| 4 | [Operação diária](./docs/superpowers/specs/2026-09-07-ciclo-4-operacao-diaria-design.md) | [Plano do Ciclo 4](./docs/superpowers/plans/2026-09-07-ciclo-4-operacao-diaria.md) |
+| 5 | [Notificações](./docs/superpowers/specs/2026-09-07-ciclo-5-notificacoes-design.md) | [Plano do Ciclo 5](./docs/superpowers/plans/2026-09-07-ciclo-5-notificacoes.md) |
+| 6 | [Mapa, rastreamento e roteirização](./docs/superpowers/specs/2026-09-07-ciclo-6-mapa-rastreamento-roteirizacao-design.md) | [Plano do Ciclo 6](./docs/superpowers/plans/2026-09-07-ciclo-6-mapa-rastreamento-roteirizacao.md) |
 
 - [Plano técnico e modelo de domínio](./be-tech-plan.md)
 - [Diretrizes de desenvolvimento](./CONTRIBUTING.md)
@@ -156,3 +169,7 @@ Cada etapa terá especificação e plano próprios. A implementação começará
 - [Plano de implementação do Ciclo 1](./docs/superpowers/plans/2026-09-05-ciclo-1-fundacao-multitenant.md)
 - [Spec do Ciclo 2](./docs/superpowers/specs/2026-09-06-ciclo-2-marketplace-vinculos-design.md)
 - [Plano de implementação do Ciclo 2](./docs/superpowers/plans/2026-09-06-ciclo-2-marketplace-vinculos.md)
+
+## Validação do backend
+
+Execute `python3 supabase/tests/run_database_tests.py` no Supabase local. O executor expande includes `\ir` em arquivos temporários, executa a suíte pgTAP e remove esses arquivos ao final. Não usa banco remoto.

@@ -1,0 +1,59 @@
+begin;
+
+\ir ../_helpers.psql
+\ir ../_planning.psql
+
+select pg_temp.seed_cycle_3();
+
+-- The race needs exactly one seat on the shared vehicle.  There are no
+-- reservations yet, so this change is safe and is made through the public
+-- command used by operators.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"40000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select public.save_van(
+  '41000000-0000-0000-0000-000000000001',
+  (select id from planning_ids where kind = 'van'),
+  'CYC-1234', 'Micro', 'Van Ciclo 3', 1
+) as constrained_van \gset
+
+select id as planning_school from planning_ids where kind = 'school' \gset
+select id as planning_van from planning_ids where kind = 'van' \gset
+select id as planning_going_schedule from planning_ids where kind = 'going-schedule' \gset
+select id as planning_return_schedule from planning_ids where kind = 'return-schedule' \gset
+select id as planning_request_a from planning_ids where kind = 'request' \gset
+select id as planning_student_a from planning_ids where kind = 'minor' \gset
+-- Keep fixture creation atomic. Set B to a later server clock below so
+-- priority is deterministic without relying on random UUID ordering.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"60000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select public.create_minor_student(
+  'Aluno Ciclo 3 Concorrente', current_date - 8 * 365,
+  '18000000', 'Rua da Concorrência', '12', null, 'Centro',
+  'Cidade Teste', '3550000', 'SP', -23.5505, -46.6333
+) as student_b \gset
+select public.submit_fleet_join_request(
+  '41000000-0000-0000-0000-000000000001',
+  :'student_b', :'planning_school', 'morning',
+  array['going']::text[], array[1]::smallint[]
+) as request_b \gset
+update public.fleet_join_requests set created_at=clock_timestamp() where id=:'request_b';
+commit;
+
+\pset format unaligned
+\pset tuples_only on
+select 'VANGO_CONCURRENCY_FLEET=' || '41000000-0000-0000-0000-000000000001';
+select 'VANGO_CONCURRENCY_OWNER=' || '40000000-0000-0000-0000-000000000001';
+select 'VANGO_CONCURRENCY_PRIMARY=' || '60000000-0000-0000-0000-000000000001';
+select 'VANGO_CONCURRENCY_VAN=' || :'planning_van';
+select 'VANGO_CONCURRENCY_GOING_SCHEDULE=' || :'planning_going_schedule';
+select 'VANGO_CONCURRENCY_RETURN_SCHEDULE=' || :'planning_return_schedule';
+select 'VANGO_CONCURRENCY_REQUEST_A=' || :'planning_request_a';
+select 'VANGO_CONCURRENCY_REQUEST_B=' || :'request_b';
+select 'VANGO_CONCURRENCY_STUDENT_A=' || :'planning_student_a';
+select 'VANGO_CONCURRENCY_STUDENT_B=' || :'student_b';

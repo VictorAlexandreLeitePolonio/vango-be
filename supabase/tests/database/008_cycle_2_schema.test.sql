@@ -46,9 +46,9 @@ select ok(
   exists (
     select 1 from pg_indexes
     where schemaname = 'public'
-      and indexname = 'fleet_join_requests_pending_student_fleet_key'
+      and indexname = 'fleet_join_requests_open_student_fleet_key'
   ),
-  'one pending request per student and fleet is indexed'
+  'one open request per student and fleet is indexed, including waitlisted requests'
 );
 select ok(
   exists (

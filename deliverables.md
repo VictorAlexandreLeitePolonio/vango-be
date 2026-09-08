@@ -17,10 +17,10 @@ Este arquivo registra somente funcionalidades, arquivos, migrations e validaçõ
 | 0 | Preparação local | Concluído | 2026-09-05 |
 | 1 | Fundação multi-tenant | Concluído | 2026-09-05 |
 | 2 | Marketplace e vínculos | Concluído localmente | 2026-09-06 |
-| 3 | Frota e planejamento | Não iniciado | — |
-| 4 | Operação diária | Não iniciado | — |
-| 5 | Notificações | Não iniciado | — |
-| 6 | Mapa, rastreamento e roteirização | Não iniciado | — |
+| 3 | Frota e planejamento | Backend validado; ver pendências abaixo | 2026-09-08 |
+| 4 | Operação diária | Backend validado; ver pendências abaixo | 2026-09-08 |
+| 5 | Notificações | Backend validado; ver pendências abaixo | 2026-09-08 |
+| 6 | Mapa, rastreamento e roteirização | Backend validado; ver pendências abaixo | 2026-09-08 |
 
 ## Ciclo 0 — Preparação local
 
@@ -137,24 +137,60 @@ Este arquivo registra somente funcionalidades, arquivos, migrations e validaçõ
 
 ## Ciclo 3 — Frota e planejamento
 
-**Status:** Não iniciado
+**Status:** Implementado e validado localmente.
 
-**Registro:** Nenhuma entrega de implementação registrada.
+**Escopo entregue:** vans com placa global, convites e papéis de motorista, rotas com escolas ordenadas, agendas finitas, reservas de todas as combinações, fila por chegada e troca temporal de programação. Aprovação reserva todas as vagas atomicamente; ausência não libera capacidade por trecho. O dono pode aceitar ou recusar, mas não ultrapassar pedido anterior integralmente atendível escolhendo outra data.
+
+**Artefatos:** sete migrations de 20260907235802 a 20260907235814, testes 017–023, fixtures e harness de concorrência. [Runbook](docs/operations/ciclo-3-production.md).
+
+**Validação:** 151 assertions C3 e sete disputas reais: última vaga, placa global, suspensão × atribuição e motorista entre frotas, estas três em ambas as ordens. Upgrade de vínculo fictício aprovado pelo contrato anterior preservou matrícula/escola/turno e referência ao pedido sem inventar alocações. A suíte integrada revalida os Ciclos 0–2 com convite pendente e aprovação condicionada à reserva.
+
+**Limite deliberado:** lock global de planejamento e busca sobre calendário finito. Medir contenção antes de particionar locks.
 
 ## Ciclo 4 — Operação diária
 
-**Status:** Não iniciado
+**Status:** Implementado e validado localmente.
 
-**Registro:** Nenhuma entrega de implementação registrada.
+**Escopo entregue:** calendário definido pelo dono, geração idempotente, confirmação e fechamento por prazo, exceção do dono com motivo, presença, substituição de recursos, ocorrências com complementos e reconciliação síncrona. Endereço/escola preservam o transporte e atualizam somente viagens não iniciadas, inclusive após fechamento das confirmações; a participação já confirmada permanece. Suspensão de motorista é bloqueada enquanto houver atribuições ativas ou futuras.
+
+**Artefatos:** oito migrations de 20260907235815 a 20260907235829, testes 024–031, harness de operação e job Cron real criado inativo. [Runbook](docs/operations/ciclo-4-production.md).
+
+**Validação:** 193 assertions operacionais, 12 do orquestrador/Cron e 18 de liberação de recursos por fuso; quatro corridas reais — início × endereço, início × encerramento, início duplo e substituição × suspensão. Cleanup considera notificações emitidas pelos ciclos posteriores.
 
 ## Ciclo 5 — Notificações
 
-**Status:** Não iniciado
+**Status:** Implementado e validado localmente; integração real com dispositivos pendente.
 
-**Registro:** Nenhuma entrega de implementação registrada.
+**Escopo entregue:** inbox persistente e leitura individual, tokens por dispositivo, destinatários revalidados, mensagens unidirecionais, eventos e lembretes, fila com lease e retries limitados, worker FCM com OAuth e payload genérico sem PII. Rotação de token durante entrega não revoga o token novo. O dispatcher Cron nasce inativo e o worker permanece desabilitado no banco.
+
+**Artefatos:** cinco migrations de 20260907235831 a 20260907235838, testes 032–037_notification_worker_job, concorrência de claims, Edge Function notification-dispatch, exemplo de variáveis sem valores e endpoint protegido por segredo próprio. [Runbook](docs/operations/ciclo-5-production.md).
+
+**Validação:** 129 assertions de domínio, 15 do job/worker e disputa real de claim; 28 testes Deno de OAuth, FCM e despacho, com typecheck, lint e formato.
+
+**Pendências externas verificadas:** o projeto remoto não contém os secrets FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY e NOTIFICATION_WORKER_SECRET. Configurar FCM/Vault, publicar a Edge Function e validar Flutter iOS/APNs e Android em dispositivos antes de ativar o dispatcher. Nenhum push real foi enviado.
 
 ## Ciclo 6 — Mapa, rastreamento e roteirização
 
-**Status:** Não iniciado
+**Status:** Escopo independente do provedor implementado; integração de mapas/ETA permanece em espera.
 
-**Registro:** Nenhuma entrega de implementação registrada.
+**Escopo entregue:** GPS autenticado e histórico por atribuição, amostragem de 30 segundos, posição atual separada, canais privados com época de revogação, projeções sem pontos de outros alunos, sincronização offline idempotente, CAS de percurso, contingência manual, retenção de 30 dias, resumos verificáveis e infraestrutura de ETA/proximidade. Ordem manual não fabrica ETA.
+
+**Artefatos:** cinco migrations de 20260907235840 a 20260907235848, testes 037_locations–041, contratos TypeScript, concorrência SQL e harness WebSocket nativo. [Runbook](docs/operations/ciclo-6-production.md).
+
+**Validação:** resultados finais registrados abaixo. Sockets reais verificam entrega privada, negação de outra frota, ausência de GPS em canal público, bloqueio de publicação pelo cliente, revogação de dono/responsável/adulto/motorista e manutenção de acesso quando outro dependente continua elegível. Canais abertos antes da revogação não recebem as posições seguintes.
+
+**Contrato offline:** o cliente com fila offline usa sync_trip_events tanto conectado quanto na retomada, preservando comando, sequência e captura originais. Trocar comando já enviado por record_passenger_event para o envelope diferente de sync_trip_events gera conflito explícito. Reenvio de fato aceito não modifica a presença nem reabre viagem; o operador precisa continuar autorizado.
+
+**Pendências aprovadas:** escolha, orçamento e integração do provedor de mapas, geocodificação e ETA real; tarefas 7–8 do plano permanecem em espera. Não há geometrias externas, ETA inventado ou alertas automáticos de proximidade sem fonte válida.
+
+## Validação integrada e publicação da release
+
+Local: reset das 41 migrations; 850 assertions pgTAP em 44 arquivos; 45 testes Deno; typecheck, lint e formato; 14 disputas reais entre sessões PostgreSQL; WebSocket real com entrega privada e revogação de canais abertos. Todos passaram, incluindo cleanup.
+
+Publicação SQL em 2026-09-08: `npx supabase db push --dry-run` confirmou 25 migrations pendentes e `npx supabase db push` aplicou todas com sucesso no projeto VanGo (`njjeopcxhnkeszukaoma`). Histórico remoto confirmado: 41 migrations, última `20260907235848`; zero tabelas públicas sem RLS e zero funções SECURITY DEFINER sem search_path. Frotas e escolas continuam vazias, sem seed remoto. Foi preservado um dump de schema anterior; isso não equivale a backup de dados/PITR. Os três jobs foram conferidos inativos no remoto. FCM/Vault, deploy da Edge Function, dispositivos e integração do provedor de mapas continuam pendentes.
+
+Quality gate: **WARNING**, sem regressão funcional ou vulnerabilidade identificada pendente. Avisos: complexidade das transações SQL, lock global e avisos do analisador SQL (helper de erro/variáveis não lidas). Análise de mutações somente por raciocínio: 12 regras, maior risco hipotético CRITICAL. Nenhum teste de mutação ou Sonar executado.
+
+Advisors remotos: avisos genéricos de RPC SECURITY DEFINER executável e informações de RLS sem policy em tabelas acessíveis apenas via RPC, coerentes com a arquitetura. As RPCs de marketplace/preview são públicas por contrato; demais RPCs revalidam autenticação e papéis. A função de event trigger rls_auto_enable pertence à plataforma e não foi criada pela release.
+
+Cobertura Deno real: **89,3% linhas, 85,8% branches, 97,6% funções**, obtida com `deno test --coverage` e `deno coverage`, sem novas dependências. Artefatos gerados fora do repositório.

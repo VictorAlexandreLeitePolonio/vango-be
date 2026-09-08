@@ -1,0 +1,135 @@
+begin;
+
+-- Later cycles may emit notifications while these reusable fixtures execute.
+-- Keep cleanup compatible with both the isolated cycle and the final schema.
+do $optional_fixture_cleanup$
+declare
+  v_table text;
+  v_fleets uuid[] := array[
+    '41000000-0000-0000-0000-000000000001'::uuid,
+    '41000000-0000-0000-0000-000000000002'::uuid
+  ];
+begin
+  foreach v_table in array array[
+    'private.notification_manual_commands',
+    'private.trip_location_summaries',
+    'public.notifications',
+    'public.trip_route_calculations',
+    'public.trip_location_points',
+    'public.trip_location_receipts',
+    'public.trip_current_locations'
+  ] loop
+    if to_regclass(v_table) is not null then
+      execute format('delete from %s where fleet_id = any($1)',v_table) using v_fleets;
+    end if;
+  end loop;
+  if to_regclass('private.notification_processed_events') is not null
+    and to_regclass('public.trip_events') is not null then
+    execute 'delete from private.notification_processed_events where event_id in
+      (select id from public.trip_events where fleet_id=any($1))' using v_fleets;
+  end if;
+end;
+$optional_fixture_cleanup$;
+
+
+-- Remove children in FK order.  The fleet and users are dedicated to the
+-- local fixture; no production or shared database is ever a valid target.
+delete from public.transport_reservations
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+delete from public.route_student_schedules
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+update public.fleet_join_requests
+set enrollment_id = null
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+delete from public.fleet_enrollments
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+delete from public.fleet_join_requests
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+delete from public.fleet_invitations
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+delete from public.route_schools
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+update public.routes
+set paired_route_id = null
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+delete from public.route_schedules
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+delete from public.routes
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+delete from public.vans
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+delete from public.fleet_membership_role_sources
+where membership_id in (
+  select id from public.fleet_memberships
+  where fleet_id in (
+    '41000000-0000-0000-0000-000000000001',
+    '41000000-0000-0000-0000-000000000002'
+  )
+);
+delete from public.fleet_membership_roles
+where membership_id in (
+  select id from public.fleet_memberships
+  where fleet_id in (
+    '41000000-0000-0000-0000-000000000001',
+    '41000000-0000-0000-0000-000000000002'
+  )
+);
+delete from public.fleet_memberships
+where fleet_id in (
+  '41000000-0000-0000-0000-000000000001',
+  '41000000-0000-0000-0000-000000000002'
+);
+
+delete from public.fleet_service_schools
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+delete from public.fleet_service_cities
+where fleet_id in ('41000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002');
+
+delete from public.audit_events
+where fleet_id in (
+  '41000000-0000-0000-0000-000000000001',
+  '41000000-0000-0000-0000-000000000002'
+);
+delete from public.fleets
+where id in (
+  '41000000-0000-0000-0000-000000000001',
+  '41000000-0000-0000-0000-000000000002'
+);
+
+-- The psql variables are supplied by planning.py.  Keeping them explicit
+-- prevents a broad delete of a user's unrelated students.
+\if :{?student_a}
+  delete from public.student_guardian_invitations where student_id in (:'student_a'::uuid, :'student_b'::uuid);
+  delete from public.student_guardians where student_id in (:'student_a'::uuid, :'student_b'::uuid);
+  delete from public.students where id in (:'student_a'::uuid, :'student_b'::uuid);
+\endif
+
+delete from public.schools
+where id = '65000000-0000-0000-0000-000000000001';
+
+delete from auth.users
+where id in (
+  '40000000-0000-0000-0000-000000000001',
+  '40000000-0000-0000-0000-000000000002',
+  '40000000-0000-0000-0000-000000000003',
+  '40000000-0000-0000-0000-000000000004',
+  '40000000-0000-0000-0000-000000000005',
+  '60000000-0000-0000-0000-000000000001',
+  '60000000-0000-0000-0000-000000000002',
+  '60000000-0000-0000-0000-000000000003',
+  '60000000-0000-0000-0000-000000000004',
+  '60000000-0000-0000-0000-000000000005'
+);
+
+commit;

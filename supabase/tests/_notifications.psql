@@ -1,0 +1,78 @@
+\ir _helpers.psql
+\ir _planning.psql
+\ir _operations.psql
+
+create or replace function pg_temp.seed_notification_trip()
+returns uuid
+language plpgsql
+as $$
+declare
+  v_fleet_id uuid := '41000000-0000-0000-0000-000000000001';
+  v_owner_id uuid := '40000000-0000-0000-0000-000000000001';
+  v_driver_id uuid := '40000000-0000-0000-0000-000000000003';
+  v_van_id uuid := '73000000-0000-0000-0000-000000000001';
+  v_route_id uuid := '74000000-0000-0000-0000-000000000001';
+  v_schedule_id uuid := '75000000-0000-0000-0000-000000000001';
+  v_day_id uuid := '76000000-0000-0000-0000-000000000001';
+  v_trip_id uuid := '77000000-0000-0000-0000-000000000001';
+  v_service_date date := current_date + 1;
+  v_start_at timestamptz;
+begin
+  perform pg_temp.seed_foundation();
+  v_start_at := (v_service_date + time '12:00') at time zone 'UTC';
+  insert into public.vans (id, fleet_id, plate, model, public_name, capacity)
+  values (v_van_id, v_fleet_id, 'TST0001', 'Micro', 'Van de teste', 30);
+  insert into public.routes (
+    id, fleet_id, name, direction, shift, van_id, driver_user_id,
+    origin_latitude, origin_longitude, origin_label,
+    destination_latitude, destination_longitude, destination_label
+  ) values (
+    v_route_id, v_fleet_id, 'Rota de teste', 'going', 'morning', v_van_id, v_driver_id,
+    -23.5, -46.6, 'Origem', -23.6, -46.7, 'Destino'
+  );
+  insert into public.route_schedules (
+    id, route_id, fleet_id, weekdays, starts_at, ends_at, ends_next_day, timezone,
+    valid_from, valid_until
+  ) values (
+    v_schedule_id, v_route_id, v_fleet_id, array[1]::smallint[], time '12:00', time '13:00',
+    false, 'UTC', '2026-01-01', '2027-12-31'
+  );
+  insert into public.service_days (id, fleet_id, service_date)
+  values (v_day_id, v_fleet_id, v_service_date);
+  insert into public.trips (
+    id, fleet_id, service_day_id, route_id, schedule_id, service_date,
+    planned_start_at, reserved_until, confirmation_deadline, status,
+    van_id, driver_user_id
+  ) values (
+    v_trip_id, v_fleet_id, v_day_id, v_route_id, v_schedule_id, v_service_date,
+    v_start_at, v_start_at + interval '1 hour', v_start_at - interval '30 minutes',
+    'scheduled', v_van_id, v_driver_id
+  );
+  create temp table if not exists operation_ids(
+    kind text primary key,
+    id uuid not null
+  ) on commit drop;
+  truncate operation_ids;
+  insert into operation_ids(kind, id) values ('going', v_trip_id);
+  grant all on operation_ids to authenticated;
+  return v_trip_id;
+end;
+$$;
+
+create or replace function pg_temp.seed_notifications()
+returns uuid
+language plpgsql
+as $$
+declare
+  v_trip_id uuid;
+begin
+  v_trip_id := pg_temp.seed_notification_trip();
+  create temp table if not exists notification_ids(
+    kind text primary key,
+    id uuid not null
+  ) on commit drop;
+  truncate notification_ids;
+  grant all on notification_ids to authenticated;
+  return v_trip_id;
+end;
+$$;

@@ -1,0 +1,117 @@
+begin;
+
+\ir ../_helpers.psql
+\ir ../_planning.psql
+\ir ../_operations.psql
+
+-- The setup is committed so the two race sessions can observe the same
+-- fixture.  The Python harness only accepts the isolated vango_cycle_4 DB.
+select pg_temp.seed_cycle_4();
+
+select id as operation_going from operation_ids where kind = 'going' \gset
+select id as operation_return from operation_ids where kind = 'return' \gset
+select id as operation_enrollment from operation_ids where kind = 'enrollment' \gset
+select id as operation_passenger from operation_ids where kind = 'passenger' \gset
+select id as operation_student from planning_ids where kind = 'minor' \gset
+select service_date as operation_date from public.trips where id = :'operation_going'::uuid \gset
+select id as operation_school_stop
+from public.trip_stops
+where trip_id = :'operation_going'::uuid and kind = 'school'
+order by position limit 1 \gset
+select id as operation_home_stop
+from public.trip_stops
+where trip_id = :'operation_going'::uuid and kind = 'home'
+order by position limit 1 \gset
+
+-- Both trips are ready for a start race.  The coordinates are deliberately
+-- resolved through the public owner command before the sessions begin.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"60000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select public.respond_trip(
+  :'operation_going'::uuid, :'operation_student'::uuid,
+  true, '7c000000-0000-0000-0000-000000000001'::uuid
+);
+select public.respond_trip(
+  :'operation_return'::uuid, :'operation_student'::uuid,
+  true, '7c000000-0000-0000-0000-000000000002'::uuid
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"40000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select private.close_confirmations(
+  (select max(confirmation_deadline) from public.trips
+   where service_date = :'operation_date'::date)
+);
+
+do $fixture$
+declare
+  v_revision bigint;
+  v_trip_id uuid;
+begin
+  for v_trip_id in
+    select id from public.trips
+    where id in (
+      (select id from operation_ids where kind = 'going'),
+      (select id from operation_ids where kind = 'return')
+    )
+    order by id
+  loop
+    select revision into v_revision from public.trips where id = v_trip_id;
+    v_revision := public.set_trip_stop(
+      (select id from public.trip_stops where trip_id = v_trip_id and kind = 'school'
+       order by position limit 1),
+      -23.5610, -46.6550, 'Escola Ciclo 3', v_revision
+    );
+    v_revision := public.set_trip_stop(
+      (select id from public.trip_stops where trip_id = v_trip_id and kind = 'home'
+       order by position limit 1),
+      -23.5505, -46.6333, 'Residência Ciclo 3', v_revision
+    );
+    perform public.order_trip_stops(
+      v_trip_id,
+      (select array_agg(id order by position)
+       from public.trip_stops where trip_id = v_trip_id),
+      v_revision, 'ordem preparada para corrida'
+    );
+  end loop;
+end
+$fixture$;
+
+-- A second date proves that an address reconciliation after the start updates
+-- only the later unstarted execution.
+select private.generate_trips(:'operation_date'::date + 7, clock_timestamp());
+select id as operation_future_going
+from public.trips
+where route_id = (select id from planning_ids where kind = 'going-route')
+  and service_date = :'operation_date'::date + 7
+\gset
+
+-- The fourth race substitutes this trip to a dedicated van and driver.
+select set_fleet_member_roles(
+  '42000000-0000-0000-0000-000000000002', array['owner', 'driver']::text[]
+);
+select public.save_van(
+  '41000000-0000-0000-0000-000000000001', null,
+  'RAC4001', 'Micro', 'Van Operação Corrida', 30
+) as operation_replacement_van \gset
+
+commit;
+
+\pset format unaligned
+\pset tuples_only on
+select 'VANGO_C4_OPERATION_FLEET=41000000-0000-0000-0000-000000000001';
+select 'VANGO_C4_OPERATION_OWNER=40000000-0000-0000-0000-000000000001';
+select 'VANGO_C4_OPERATION_GUARDIAN=60000000-0000-0000-0000-000000000001';
+select 'VANGO_C4_OPERATION_DRIVER=40000000-0000-0000-0000-000000000003';
+select 'VANGO_C4_OPERATION_REPLACEMENT_DRIVER=40000000-0000-0000-0000-000000000002';
+select 'VANGO_C4_OPERATION_GOING=' || :'operation_going';
+select 'VANGO_C4_OPERATION_RETURN=' || :'operation_return';
+select 'VANGO_C4_OPERATION_FUTURE_GOING=' || :'operation_future_going';
+select 'VANGO_C4_OPERATION_ENROLLMENT=' || :'operation_enrollment';
+select 'VANGO_C4_OPERATION_STUDENT=' || :'operation_student';
+select 'VANGO_C4_OPERATION_REPLACEMENT_VAN=' || :'operation_replacement_van';
