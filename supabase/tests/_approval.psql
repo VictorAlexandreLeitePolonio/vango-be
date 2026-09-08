@@ -1,0 +1,32 @@
+-- Resource fixture for legacy enrollment/audit tests under the Cycle 3 contract.
+create function pg_temp.seed_approval_schedule(p_request_id uuid)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_request public.fleet_join_requests%rowtype;
+  v_van_id uuid;
+  v_route_id uuid;
+begin
+  select * into strict v_request from public.fleet_join_requests where id = p_request_id;
+  perform public.set_fleet_member_roles(
+    (select id from public.fleet_memberships
+     where fleet_id = v_request.fleet_id and user_id = auth.uid()),
+    array['owner', 'driver']::text[]
+  );
+  v_van_id := public.save_van(v_request.fleet_id, null, 'TST1234', 'Test van', 'Test van', 30);
+  v_route_id := public.save_route(v_request.fleet_id, null, jsonb_build_object(
+    'name', 'Approval test', 'direction', 'going', 'shift', v_request.shift,
+    'van_id', v_van_id, 'driver_user_id', auth.uid(),
+    'origin', jsonb_build_object('latitude', -23.5, 'longitude', -47.5, 'label', 'Origin'),
+    'destination', jsonb_build_object('latitude', -23.6, 'longitude', -47.6, 'label', 'Destination'),
+    'schools', jsonb_build_array(jsonb_build_object('school_id', v_request.school_id, 'position', 1))
+  ));
+  return public.save_route_schedule(v_route_id, null, jsonb_build_object(
+    'weekdays', jsonb_build_array(1), 'starts_at', '08:00', 'ends_at', '09:00',
+    'ends_next_day', false, 'timezone', 'America/Sao_Paulo',
+    'valid_from', (current_date + 1)::text, 'valid_until', (current_date + 30)::text,
+    'confirmation_minutes', 30
+  ));
+end;
+$$;

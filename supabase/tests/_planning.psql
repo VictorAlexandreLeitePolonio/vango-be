@@ -1,0 +1,116 @@
+create or replace function pg_temp.seed_cycle_3()
+returns void
+language plpgsql
+as $$
+declare
+  v_fleet_id uuid := '41000000-0000-0000-0000-000000000001';
+  v_owner_id uuid := '40000000-0000-0000-0000-000000000001';
+  v_driver_id uuid := '40000000-0000-0000-0000-000000000003';
+  v_primary_id uuid := '60000000-0000-0000-0000-000000000001';
+  v_school_id uuid := '65000000-0000-0000-0000-000000000001';
+  v_van_id uuid;
+  v_going_route_id uuid;
+  v_return_route_id uuid;
+  v_going_schedule_id uuid;
+  v_return_schedule_id uuid;
+  v_student_id uuid;
+  v_request_id uuid;
+  v_from date := current_date + 1;
+  v_until date := current_date + 90;
+  v_route_config jsonb;
+  v_schedule jsonb;
+begin
+  perform pg_temp.seed_foundation();
+  perform pg_temp.seed_cycle_2_users();
+  create temp table if not exists planning_ids(kind text primary key, id uuid) on commit drop;
+  truncate planning_ids;
+  grant all on planning_ids to authenticated;
+
+  update public.fleets set status = 'published' where id = v_fleet_id;
+  insert into public.schools (
+    id, provider, external_id, institution_type, name, postal_code, street,
+    street_number, neighborhood, city_name, city_ibge_code, state_code
+  ) values (
+    v_school_id, 'inep', 'cycle3-school', 'school', 'Escola Ciclo 3',
+    '18000000', 'Rua do Ciclo 3', '1', 'Centro', 'Cidade Teste', '3550000', 'SP'
+  );
+  insert into public.fleet_service_cities (
+    fleet_id, city_ibge_code, city_name, state_code, created_by
+  ) values (
+    v_fleet_id, '3550000', 'Cidade Teste', 'SP', v_owner_id
+  );
+  insert into public.fleet_service_schools (fleet_id, school_id, created_by)
+  values (v_fleet_id, v_school_id, v_owner_id);
+  insert into planning_ids(kind, id) values ('school', v_school_id);
+
+  perform set_config(
+    'request.jwt.claims',
+    jsonb_build_object('sub', v_owner_id, 'role', 'authenticated')::text,
+    true
+  );
+  v_van_id := public.save_van(v_fleet_id, null, 'CYC-1234', 'Micro', 'Van Ciclo 3', 30);
+  insert into planning_ids(kind, id) values ('van', v_van_id);
+
+  v_route_config := jsonb_build_object(
+    'name', 'Ciclo 3 ida', 'direction', 'going', 'shift', 'morning',
+    'van_id', v_van_id, 'driver_user_id', v_driver_id,
+    'origin', jsonb_build_object('latitude', -23.5505, 'longitude', -46.6333, 'label', 'Residência'),
+    'destination', jsonb_build_object('latitude', -23.5610, 'longitude', -46.6550, 'label', 'Escola'),
+    'schools', jsonb_build_array(jsonb_build_object('school_id', v_school_id, 'position', 1))
+  );
+  v_going_route_id := public.save_route(v_fleet_id, null, v_route_config);
+  insert into planning_ids(kind, id) values ('going-route', v_going_route_id);
+
+  v_route_config := jsonb_build_object(
+    'name', 'Ciclo 3 volta', 'direction', 'return', 'shift', 'morning',
+    'paired_route_id', v_going_route_id, 'van_id', v_van_id, 'driver_user_id', v_driver_id,
+    'origin', jsonb_build_object('latitude', -23.5610, 'longitude', -46.6550, 'label', 'Escola'),
+    'destination', jsonb_build_object('latitude', -23.5505, 'longitude', -46.6333, 'label', 'Residência'),
+    'schools', jsonb_build_array(jsonb_build_object('school_id', v_school_id, 'position', 1))
+  );
+  v_return_route_id := public.save_route(v_fleet_id, null, v_route_config);
+  insert into planning_ids(kind, id) values ('return-route', v_return_route_id);
+  v_route_config := jsonb_set(v_route_config, '{paired_route_id}', to_jsonb(v_going_route_id));
+  perform public.save_route(v_fleet_id, v_going_route_id,
+    jsonb_build_object(
+      'name', 'Ciclo 3 ida', 'direction', 'going', 'shift', 'morning',
+      'paired_route_id', v_return_route_id, 'van_id', v_van_id, 'driver_user_id', v_driver_id,
+      'origin', jsonb_build_object('latitude', -23.5505, 'longitude', -46.6333, 'label', 'Residência'),
+      'destination', jsonb_build_object('latitude', -23.5610, 'longitude', -46.6550, 'label', 'Escola'),
+      'schools', jsonb_build_array(jsonb_build_object('school_id', v_school_id, 'position', 1))
+    )
+  );
+
+  v_schedule := jsonb_build_object(
+    'weekdays', jsonb_build_array(1, 2, 3, 4, 5), 'starts_at', '08:00', 'ends_at', '09:00',
+    'ends_next_day', false, 'timezone', 'America/Sao_Paulo',
+    'valid_from', v_from::text, 'valid_until', v_until::text, 'confirmation_minutes', 30
+  );
+  v_going_schedule_id := public.save_route_schedule(v_going_route_id, null, v_schedule);
+  insert into planning_ids(kind, id) values ('going-schedule', v_going_schedule_id);
+
+  v_schedule := jsonb_build_object(
+    'weekdays', jsonb_build_array(1, 2, 3, 4, 5), 'starts_at', '16:00', 'ends_at', '17:00',
+    'ends_next_day', false, 'timezone', 'America/Sao_Paulo',
+    'valid_from', v_from::text, 'valid_until', v_until::text, 'confirmation_minutes', 30
+  );
+  v_return_schedule_id := public.save_route_schedule(v_return_route_id, null, v_schedule);
+  insert into planning_ids(kind, id) values ('return-schedule', v_return_schedule_id);
+
+  perform set_config(
+    'request.jwt.claims',
+    jsonb_build_object('sub', v_primary_id, 'role', 'authenticated')::text,
+    true
+  );
+  v_student_id := public.create_minor_student(
+    'Aluno Ciclo 3', current_date - 10 * 365, '18000000', 'Rua do Aluno', '10',
+    null, 'Centro', 'Cidade Teste', '3550000', 'SP', -23.5505, -46.6333
+  );
+  insert into planning_ids(kind, id) values ('minor', v_student_id);
+  v_request_id := public.submit_fleet_join_request(
+    v_fleet_id, v_student_id, v_school_id, 'morning',
+    array['going', 'return']::text[], array[1, 2, 3, 4, 5]::smallint[]
+  );
+  insert into planning_ids(kind, id) values ('request', v_request_id);
+end;
+$$;
