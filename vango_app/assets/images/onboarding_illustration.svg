@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 300" fill="none">
+  <defs>
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF8F0"/>
+      <stop offset="100%" stop-color="#FEF3E2"/>
+    </linearGradient>
+    <linearGradient id="vanGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F7931E"/>
+      <stop offset="100%" stop-color="#FDB813"/>
+    </linearGradient>
+    <linearGradient id="roadGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#E5E7EB"/>
+      <stop offset="100%" stop-color="#D1D5DB"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="360" height="300" fill="url(#skyGrad)"/>
+
+  <!-- Clouds -->
+  <g opacity="0.4">
+    <ellipse cx="70" cy="60" rx="35" ry="14" fill="#FDB813"/>
+    <ellipse cx="55" cy="55" rx="25" ry="12" fill="#FDB813"/>
+    <ellipse cx="280" cy="45" rx="40" ry="15" fill="#FDB813"/>
+    <ellipse cx="300" cy="40" rx="25" ry="11" fill="#FDB813"/>
+    <ellipse cx="180" cy="35" rx="30" ry="12" fill="#FDB813"/>
+  </g>
+
+  <!-- Buildings background -->
+  <g opacity="0.15">
+    <rect x="20" y="110" width="40" height="120" rx="4" fill="#F7931E"/>
+    <rect x="70" y="90" width="35" height="140" rx="4" fill="#E07B0A"/>
+    <rect x="115" y="120" width="30" height="110" rx="4" fill="#F7931E"/>
+    <rect x="200" y="100" width="38" height="130" rx="4" fill="#E07B0A"/>
+    <rect x="248" y="115" width="32" height="115" rx="4" fill="#F7931E"/>
+    <rect x="290" y="95" width="42" height="135" rx="4" fill="#E07B0A"/>
+  </g>
+
+  <!-- Building windows -->
+  <g opacity="0.08">
+    <rect x="28" y="120" width="8" height="8" rx="1" fill="#FDB813"/>
+    <rect x="28" y="135" width="8" height="8" rx="1" fill="#FDB813"/>
+    <rect x="42" y="120" width="8" height="8" rx="1" fill="#FDB813"/>
+    <rect x="42" y="135" width="8" height="8" rx="1" fill="#FDB813"/>
+    <rect x="78" y="100" width="8" height="8" rx="1" fill="#FDB813"/>
+    <rect x="78" y="115" width="8" height="8" rx="1" fill="#FDB813"/>
+    <rect x="90" y="100" width="8" height="8" rx="1" fill="#FDB813"/>
+  </g>
+
+  <!-- Trees -->
+  <g opacity="0.2">
+    <circle cx="160" cy="175" r="20" fill="#10B981"/>
+    <rect x="157" y="190" width="6" height="15" fill="#6B7280"/>
+    <circle cx="340" cy="180" r="16" fill="#10B981"/>
+    <rect x="337" y="192" width="6" height="12" fill="#6B7280"/>
+  </g>
+
+  <!-- Road -->
+  <rect x="0" y="230" width="360" height="40" fill="url(#roadGrad)" rx="0"/>
+  <g opacity="0.5">
+    <rect x="30" y="248" width="30" height="4" rx="2" fill="#FAFAFA"/>
+    <rect x="100" y="248" width="30" height="4" rx="2" fill="#FAFAFA"/>
+    <rect x="170" y="248" width="30" height="4" rx="2" fill="#FAFAFA"/>
+    <rect x="240" y="248" width="30" height="4" rx="2" fill="#FAFAFA"/>
+    <rect x="310" y="248" width="30" height="4" rx="2" fill="#FAFAFA"/>
+  </g>
+
+  <!-- Van (main element) -->
+  <g transform="translate(100, 185)">
+    <!-- Shadow -->
+    <ellipse cx="70" cy="62" rx="60" ry="6" fill="#1A1A2E" opacity="0.1"/>
+    <!-- Van body -->
+    <rect x="0" y="10" width="140" height="50" rx="10" fill="url(#vanGrad2)"/>
+    <!-- Roof -->
+    <path d="M10 10 Q10 0 20 0 L100 0 Q110 0 110 10 Z" fill="#E07B0A"/>
+    <!-- Front -->
+    <path d="M110 10 L140 10 Q145 10 145 15 L145 50 Q145 55 140 55 L110 55 Z" fill="#E07B0A"/>
+    <!-- Windows -->
+    <rect x="10" y="17" width="25" height="20" rx="5" fill="#FFF8F0" opacity="0.9"/>
+    <rect x="40" y="17" width="25" height="20" rx="5" fill="#FFF8F0" opacity="0.9"/>
+    <rect x="70" y="17" width="25" height="20" rx="5" fill="#FFF8F0" opacity="0.9"/>
+    <!-- Windshield -->
+    <path d="M105 15 L138 15 Q140 15 140 17 L140 42 Q140 44 138 44 L105 44 Z" fill="#FFF8F0" opacity="0.9"/>
+    <!-- Headlight -->
+    <rect x="140" y="25" width="6" height="10" rx="3" fill="#FDB813"/>
+    <!-- Taillight -->
+    <rect x="-2" y="30" width="4" height="8" rx="2" fill="#EF4444" opacity="0.8"/>
+    <!-- Wheels -->
+    <circle cx="30" cy="60" r="12" fill="#1A1A2E"/>
+    <circle cx="30" cy="60" r="6" fill="#6B7280"/>
+    <circle cx="30" cy="60" r="2.5" fill="#9CA3AF"/>
+    <circle cx="115" cy="60" r="12" fill="#1A1A2E"/>
+    <circle cx="115" cy="60" r="6" fill="#6B7280"/>
+    <circle cx="115" cy="60" r="2.5" fill="#9CA3AF"/>
+    <!-- "ESCOLAR" text on side -->
+    <rect x="15" y="42" width="80" height="12" rx="3" fill="#E07B0A"/>
+    <text x="55" y="52" font-family="sans-serif" font-size="8" font-weight="700" fill="#FFF8F0" text-anchor="middle">ESCOLAR</text>
+  </g>
+
+  <!-- Motion lines -->
+  <g opacity="0.3">
+    <line x1="80" y1="215" x2="60" y2="215" stroke="#F7931E" stroke-width="2" stroke-linecap="round"/>
+    <line x1="85" y1="225" x2="55" y2="225" stroke="#F7931E" stroke-width="2" stroke-linecap="round"/>
+    <line x1="82" y1="235" x2="65" y2="235" stroke="#F7931E" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Sidewalk -->
+  <rect x="0" y="270" width="360" height="30" fill="#F3F4F6"/>
+</svg>
