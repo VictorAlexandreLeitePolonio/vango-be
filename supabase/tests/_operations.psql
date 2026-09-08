@@ -1,0 +1,108 @@
+create or replace function pg_temp.seed_cycle_4()
+returns void
+language plpgsql
+as $$
+declare
+  v_fleet_id uuid := '41000000-0000-0000-0000-000000000001';
+  v_owner_id uuid := '40000000-0000-0000-0000-000000000001';
+  v_request_id uuid;
+  v_enrollment_id uuid;
+  v_service_date date := current_date + 1;
+  v_now timestamptz;
+  v_allocations jsonb;
+  v_trip_id uuid;
+  v_passenger_id uuid;
+  v_school_stop_id uuid;
+  v_home_stop_id uuid;
+begin
+  perform pg_temp.seed_cycle_3();
+  create temp table if not exists operation_ids(
+    kind text primary key,
+    id uuid not null
+  ) on commit drop;
+  truncate operation_ids;
+
+  while extract(isodow from v_service_date)::integer > 5 loop
+    v_service_date := v_service_date + 1;
+  end loop;
+
+  perform set_config(
+    'request.jwt.claims',
+    jsonb_build_object('sub', v_owner_id, 'role', 'authenticated')::text,
+    true
+  );
+  select id into v_request_id from planning_ids where kind = 'request';
+  select jsonb_agg(
+    jsonb_build_object(
+      'schedule_id', case directions.direction
+        when 'going' then (select id from planning_ids where kind = 'going-schedule')
+        else (select id from planning_ids where kind = 'return-schedule')
+      end,
+      'weekday', weekdays.weekday::smallint,
+      'direction', directions.direction
+    ) order by directions.direction, weekdays.weekday
+  ) into v_allocations
+  from (values ('going'::text), ('return'::text)) directions(direction)
+  cross join lateral generate_series(1, 5) as weekdays(weekday);
+
+  v_enrollment_id := public.approve_transport_request(
+    v_request_id, v_allocations, v_service_date
+  );
+  insert into operation_ids(kind, id) values
+    ('enrollment', v_enrollment_id),
+    ('going-route', (select id from planning_ids where kind = 'going-route')),
+    ('return-route', (select id from planning_ids where kind = 'return-route'));
+
+  v_now := ((v_service_date - 1)::date + time '12:00') at time zone 'UTC';
+  perform private.generate_trips(v_service_date, v_now);
+
+  select t.id into v_trip_id
+  from public.trips t
+  where t.fleet_id = v_fleet_id
+    and t.route_id = (select id from planning_ids where kind = 'going-route')
+    and t.service_date = v_service_date;
+  if v_trip_id is null then
+    raise exception 'cycle 4 fixture did not generate going trip';
+  end if;
+  insert into operation_ids(kind, id) values ('going', v_trip_id);
+
+  select t.id into v_trip_id
+  from public.trips t
+  where t.fleet_id = v_fleet_id
+    and t.route_id = (select id from planning_ids where kind = 'return-route')
+    and t.service_date = v_service_date;
+  if v_trip_id is null then
+    raise exception 'cycle 4 fixture did not generate return trip';
+  end if;
+  insert into operation_ids(kind, id) values ('return', v_trip_id);
+
+  select tp.id into v_passenger_id
+  from public.trip_passengers tp
+  where tp.trip_id = (select id from operation_ids where kind = 'going')
+  order by tp.id limit 1;
+  if v_passenger_id is null then
+    raise exception 'cycle 4 fixture did not generate passenger snapshot';
+  end if;
+  insert into operation_ids(kind, id) values ('passenger', v_passenger_id);
+
+  select ts.id into v_school_stop_id
+  from public.trip_stops ts
+  where ts.trip_id = (select id from operation_ids where kind = 'going')
+    and ts.kind = 'school'
+  order by ts.position limit 1;
+  if v_school_stop_id is null then
+    raise exception 'cycle 4 fixture did not generate school stop';
+  end if;
+  insert into operation_ids(kind, id) values ('school-stop', v_school_stop_id);
+
+  select ts.id into v_home_stop_id
+  from public.trip_stops ts
+  where ts.trip_id = (select id from operation_ids where kind = 'going')
+    and ts.kind = 'home'
+  order by ts.position limit 1;
+  if v_home_stop_id is null then
+    raise exception 'cycle 4 fixture did not generate home stop';
+  end if;
+  insert into operation_ids(kind, id) values ('home-stop', v_home_stop_id);
+end;
+$$;
