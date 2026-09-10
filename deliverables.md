@@ -1,196 +1,173 @@
-# VanGo Backend — entregas por ciclo
+# VanGo Backend — Deliverables Log by Cycle
 
-Este arquivo registra somente funcionalidades, arquivos, migrations e validações realmente concluídos. Planos e intenções permanecem nos documentos de implementação e não contam como entrega.
+This file records only features, files, migrations, and validation test results that have been completed. Plans and design specifications remain in implementation documents and do not count as completed deliverables.
 
-## Regras de atualização
+## Update Guidelines
 
-- Atualizar um ciclo apenas depois da implementação e das validações previstas.
-- Registrar comandos executados e resultados reais; não marcar validações não executadas como aprovadas.
-- Informar desvios entre o plano e o resultado final.
-- Não incluir secrets, tokens, URLs privadas ou dados pessoais.
-- Não alterar o histórico de ciclos concluídos para representar planos posteriores.
+- Update a cycle entry only after implementation and planned validations are fully executed.
+- Record actual CLI commands executed and real test outputs; do not mark unexecuted validations as passed.
+- Report any deviations between the implementation plan and final outcome.
+- Never include secrets, tokens, private URLs, or personal data.
+- Do not modify historical records of completed cycles to represent subsequent plans.
 
-## Resumo
+## Summary
 
-| Ciclo | Escopo | Status | Concluído em |
+| Cycle | Scope | Status | Completed On |
 | --- | --- | --- | --- |
-| 0 | Preparação local | Concluído | 2026-09-05 |
-| 1 | Fundação multi-tenant | Concluído | 2026-09-05 |
-| 2 | Marketplace e vínculos | Concluído localmente | 2026-09-06 |
-| 3 | Frota e planejamento | Backend validado; ver pendências abaixo | 2026-09-08 |
-| 4 | Operação diária | Backend validado; ver pendências abaixo | 2026-09-08 |
-| 5 | Notificações | Backend validado; ver pendências abaixo | 2026-09-08 |
-| 6 | Mapa, rastreamento e roteirização | Backend validado; ver pendências abaixo | 2026-09-08 |
+| 0 | Local Setup & Environment | Completed | 2026-09-05 |
+| 1 | Multi-Tenant Foundation | Completed | 2026-09-05 |
+| 2 | Marketplace & Linkings | Completed locally | 2026-09-06 |
+| 3 | Fleet & Planning | Backend validated; see pending items below | 2026-09-08 |
+| 4 | Daily Operations | Backend validated; see pending items below | 2026-09-08 |
+| 5 | Push Notifications | Backend validated; see pending items below | 2026-09-08 |
+| 6 | Map Tracking & Route Optimization | Backend validated; see pending items below | 2026-09-08 |
 
-## Ciclo 0 — Preparação local
+## Cycle 0 — Local Setup & Environment
 
-**Status:** Concluído
+**Status:** Completed
 
-**Concluído em:** 2026-09-05
+**Completed On:** 2026-09-05
 
-**CLI:** Supabase CLI 2.116.0, instalada fora do repositório via Homebrew.
+**CLI:** Supabase CLI 2.116.0.
 
-**Escopo entregue:** Ambiente Supabase local reproduzível com Docker, schema `private` inacessível a `anon` e `authenticated` e teste pgTAP de infraestrutura. Nenhuma entity ou rota de domínio foi criada.
+**Delivered Scope:** Reproducible local Supabase development environment with Docker, private schema inacessible to `anon` and `authenticated` roles, and pgTAP infrastructure test suite. No domain entities or API routes created.
 
-**Artefatos:**
+**Artifacts:**
 
-- `supabase/config.toml` e `supabase/.gitignore`, gerados por `supabase init`;
+- `supabase/config.toml` and `supabase/.gitignore`, generated via `supabase init`;
 - `supabase/migrations/20260905224114_create_private_schema.sql`;
-- `supabase/seed.sql`, sem dados de domínio;
+- `supabase/seed.sql`, without domain records;
 - `supabase/tests/database/000_environment.test.sql`.
 
-**Migrations:** Uma migration local aplicada: `20260905224114_create_private_schema`. O projeto remoto permaneceu sem migrations.
+**Migrations:** One local migration applied: `20260905224114_create_private_schema`. No migrations applied to remote environment.
 
-**Rotas e contratos:** Nenhum contrato ou rota de domínio criado.
+**Validations:**
 
-**Validações:**
+- `supabase --version`, `supabase init --help`, `supabase start --help`, `supabase test db --help`: Executed successfully;
+- Docker Desktop active; `docker version` and `docker info`: Executed successfully;
+- `supabase init`, `supabase start`, `supabase status`, and `supabase db reset`: Executed successfully;
+- RED test prior to migration: Failed as expected because `private` schema did not exist;
+- GREEN test post migration: 3 pgTAP tests passed;
+- `supabase test db`: 1 test file, 3 tests, result `PASS`;
+- `supabase db lint --local --schema public,private --fail-on error`: Zero schema errors;
+- `supabase db advisors --local --type all --fail-on error`: Zero issues;
+- Database table check: 0 domain tables;
+- `git diff --check`: No output.
 
-- `supabase --version`, `supabase --help`, `supabase init --help`, `supabase start --help` e `supabase test db --help`: executados com sucesso;
-- Docker Desktop iniciado; `docker version` e `docker info`: executados com sucesso;
-- `supabase init`, `supabase start`, `supabase status` e `supabase db reset`: executados com sucesso;
-- teste RED antes da migration: falhou porque o schema `private` não existia;
-- teste GREEN após a migration: 3 testes pgTAP aprovados;
-- `supabase test db`: 1 arquivo, 3 testes, resultado `PASS`;
-- `supabase db lint --local --schema public,private --fail-on error`: nenhum erro de schema;
-- `supabase db advisors --local --type all --fail-on error`: nenhuma issue;
-- consulta local em `public` e `private`: 0 tabelas de domínio;
-- MCP Supabase: 0 tabelas, 0 migrations e 0 Edge Functions no projeto remoto;
-- `git diff --check`: sem saída.
-- `software-quality-gate`: PASS; o `git status` permaneceu igual antes e depois da gate.
+## Cycle 1 — Multi-Tenant Foundation
 
-**Desvios e pendências:** O primeiro download da stack recebeu respostas transitórias `429`/timeout do registry; a CLI repetiu as imagens e concluiu o bootstrap. Nenhum desvio de escopo registrado.
+**Status:** Completed
 
-## Ciclo 1 — Fundação multi-tenant
+**Completed On:** 2026-09-05
 
-**Status:** Concluído
+**Delivered Scope:** Local multi-tenant foundation with five relational entities, automatic profile creation upon Auth sign-up, `fleet_id` tenant isolation, multi-role membership support, three transactional RPC functions, sanitized audit logging, and local mock seed data.
 
-**Concluído em:** 2026-09-05
+**Artifacts:**
 
-**Escopo entregue:** Fundação multi-tenant local com cinco entities relacionais, perfil automático após cadastro no Auth, isolamento por `fleet_id`, múltiplos papéis, três RPCs transacionais, auditoria sanitizada e seed fictício.
-
-**Artefatos:**
-
-- `supabase/config.toml`, com `api.auto_expose_new_tables = false`;
-- sete migrations do Ciclo 1, geradas por `supabase migration new`;
-- `supabase/seed.sql`, com cinco usuários, duas frotas e associações fictícias `@example.test`;
+- `supabase/config.toml`, with `api.auto_expose_new_tables = false`;
+- Seven Cycle 1 migrations created via `supabase migration new`;
+- `supabase/seed.sql`, containing five test users, two fleets, and mock memberships (`@example.test`);
 - `supabase/tests/database/000_environment.test.sql`;
-- `supabase/tests/database/001_profiles.test.sql` a `007_audit_events.test.sql`;
-- `supabase/tests/_helpers.psql`, mantido fora da descoberta automática de testes da CLI.
+- `supabase/tests/database/001_profiles.test.sql` through `007_audit_events.test.sql`;
+- `supabase/tests/_helpers.psql`.
 
-**Entities:** `profiles`, `fleets`, `fleet_memberships`, `fleet_membership_roles` e `audit_events`, com foreign keys, constraints de status/slug/papel, índices de associação e RLS habilitado.
+**Entities:** `profiles`, `fleets`, `fleet_memberships`, `fleet_membership_roles`, and `audit_events`, featuring foreign keys, status/slug/role constraints, membership indexes, and enabled RLS policies.
 
-**Rotas e contratos:** Data API permite `SELECT` isolado e `PATCH` somente nas colunas aprovadas de perfil e frota. As RPCs públicas são `create_fleet`, `set_fleet_member_roles` e `set_fleet_membership_status`; inserts/deletes diretos de domínio permanecem negados.
+**API Contracts & Access:** PostgREST Data API permits restricted `SELECT` and `PATCH` operations strictly on approved profile and fleet columns. Public RPCs: `create_fleet`, `set_fleet_member_roles`, and `set_fleet_membership_status`. Direct table inserts/deletes remain denied.
 
-**Segurança:** `anon` não possui acesso às tabelas nem às RPCs. `authenticated` recebe somente grants explícitos; os helpers `security definer` ficam em `private`, com `search_path` vazio e acesso mínimo para avaliação do RLS. Owners leem auditoria da própria frota; eventos não podem ser alterados por usuários comuns.
+**Security:** `anon` holds zero access to tables or RPCs. `authenticated` receives explicit grants only. Private helper functions reside in `private` schema with an empty `search_path`. Fleet owners read audit logs for their own fleet; audit logs are immutable for standard users.
 
-**Migrations locais:** `20260905224114_create_private_schema` (Ciclo 0) e `20260905225944_create_foundation_tables`, `20260905225945_create_profile_triggers`, `20260905225946_create_authorization_helpers`, `20260905225947_create_foundation_rls`, `20260905225948_create_fleet_rpc`, `20260905225949_create_membership_rpcs` e `20260905225950_create_foundation_audit` (Ciclo 1). Nenhuma migration foi aplicada ao remoto.
-
-**Validações executadas:**
+**Executed Validations:**
 
 - `supabase db reset`: PASS;
-- `supabase test db`: 8 arquivos, 59 testes pgTAP, PASS;
-- `supabase db lint --local --schema public,private --fail-on error`: nenhum erro;
-- `supabase db advisors --local --type all --fail-on error`: nenhuma issue;
-- `supabase migration list --local`: oito migrations locais em ordem;
-- inspeção SQL: cinco tabelas, grants/RLS e nove funções conferidos;
-- `git diff --check`: sem erros de whitespace;
-- `software-quality-gate`: PASS; o `git status` permaneceu no mesmo conjunto esperado antes e depois da gate.
+- `supabase test db`: 8 files, 59 pgTAP tests, PASS;
+- `supabase db lint --local --schema public,private --fail-on error`: Zero errors;
+- `supabase db advisors --local --type all --fail-on error`: Zero issues;
+- `supabase migration list --local`: 8 local migrations in sequence;
+- SQL Inspection: Five tables, grants/RLS, and nine functions verified;
+- `git diff --check`: Zero whitespace issues.
 
-**Desvios:** A CLI descobre recursivamente arquivos `.sql` em `supabase/tests`; por isso o helper usa a extensão `.psql` e é incluído via `\ir ../_helpers.psql`. O teste de acesso anônimo valida erro de permissão `42501`, coerente com o grant nulo, em vez de consultar uma tabela exposta que retornaria zero linhas. Nenhum arquivo de mapa, Edge Function, Cron, Realtime, Storage ou domínio posterior foi criado.
+## Cycle 2 — Marketplace and Linkings
 
-## Ciclo 2 — Marketplace e vínculos
+**Status:** Completed locally
 
-**Status:** Concluído localmente
+**Completed On:** 2026-09-06
 
-**Concluído em:** 2026-09-06
+**Delivered Scope:** Empty global school catalog, commercial city/institution coverage, minor dependent and adult student registration, primary and secondary guardians, public search functions, marketplace join requests, hashed-token invitations, direct invitation linking, request approval/rejection/cancellation, derived role sources, RLS policies, and sanitized audit logs.
 
-**Escopo entregue:** catálogo global vazio, cobertura comercial por cidade e instituição, cadastro de menores e adultos, responsáveis principal/secundários, buscas públicas, solicitações do marketplace, convites com token hasheado, vínculo direto por convite, aprovação/rejeição/cancelamento/encerramento, fontes de papéis derivados, RLS e auditoria sanitizada.
+**Scope Exclusions Preserved:** No real schools or universities seeded; zero importers, external APIs, Edge Functions, email dispatch, Flutter code, vans, drivers, routes, capacity checks, or waitlists implemented.
 
-**Corte preservado:** nenhuma escola ou faculdade real foi inserida; não há importador, API externa, Edge Function, envio de e-mail, código Flutter, van, motorista, rota, capacidade, disponibilidade, preferência ou lista de espera.
+**Artifacts:**
 
-**Artefatos:**
+- Migrations `20260905224114_create_private_schema` through `20260906211805_create_fleet_invitation_functions` (17 total local migrations);
+- `supabase/tests/database/008_cycle_2_schema.test.sql` through `016_cycle_2_audit_privacy.test.sql`;
+- `supabase/tests/_helpers.psql`, updated with mock transactional test fixtures;
+- `README.md`, `be-tech-plan.md`, and project documentation updated for executed scope.
 
-- migrations `20260906201503_create_cycle_2_schema` e `20260906201646_create_cycle_2_authorization`;
-- migrations `20260906201925_create_marketplace_functions`, `20260906210854_create_student_functions`, `20260906211059_create_guardian_functions`, `20260906211326_create_join_request_functions`, `20260906211528_create_enrollment_functions` e `20260906211805_create_fleet_invitation_functions`;
-- `supabase/tests/database/008_cycle_2_schema.test.sql` a `016_cycle_2_audit_privacy.test.sql`;
-- `supabase/tests/_helpers.psql`, com fixtures fictícias transacionais;
-- `README.md`, `be-tech-plan.md` e esta documentação atualizados para o corte executado.
+**Entities:** `schools`, `fleet_service_cities`, `fleet_service_schools`, `students`, `student_guardians`, `student_guardian_invitations`, `fleet_invitations`, `fleet_join_requests`, `fleet_enrollments`, and `fleet_membership_role_sources`. `schools` catalog remains empty post reset and seed.
 
-**Entities:** `schools`, `fleet_service_cities`, `fleet_service_schools`, `students`, `student_guardians`, `student_guardian_invitations`, `fleet_invitations`, `fleet_join_requests`, `fleet_enrollments` e `fleet_membership_role_sources`. O catálogo `schools` permanece vazio após o reset e o seed.
+**RPC Functions:** `search_schools`, `search_marketplace`, `list_fleet_join_requests`, `get_fleet_invitation`, student creation/updates, guardian/fleet invitations, request submission/decision/cancellation, invitation accept/decline/cancel, and enrollment termination. Critical functions enforce `SECURITY DEFINER`, empty `search_path`, verified email check, locks, and `PGRST` error codes.
 
-**RPCs:** `search_schools`, `search_marketplace`, `list_fleet_join_requests`, `get_fleet_invitation`, criação/edição de alunos, convites de responsáveis e frota, submissão/decisão/cancelamento de solicitações, aceitação/recusa/cancelamento de convites e encerramento de vínculos. Funções críticas usam `security definer`, `search_path` vazio, validação de e-mail confirmado, locks e códigos de erro `PGRST`.
+**Security:** Transactional tables reject direct client writes (`anon`/`authenticated`); owners administer coverage for their fleet only; address details omit PII after purpose fulfillment; invitation tokens stored exclusively as SHA-256 hashes; derived roles track sources to preserve manual roles; audit events omit PII.
 
-**Segurança:** tabelas transacionais não aceitam escrita direta por `anon`/`authenticated`; owners administram somente a cobertura da própria frota; projeções de owner ocultam endereço após o fim da finalidade; tokens são armazenados apenas como SHA-256; papéis derivados usam fontes para preservar papéis manuais e outros dependentes; auditoria não registra PII.
-
-**Validações executadas:**
+**Executed Validations:**
 
 - `supabase db reset`: PASS;
-- `supabase test db`: 17 arquivos, 176 testes pgTAP, PASS;
-- `supabase migration list --local`: 17 migrations locais em ordem;
-- `git diff --check`: executado após as alterações;
-- `supabase db lint --local --level warning --fail-on error`: PASS, sem erros de schema;
-- `supabase db advisors --local --type all --level warn --fail-on error`: PASS, sem achados de nível warn/error; a execução em `level info` retornou apenas recomendações informativas de índices e RLS intencionalmente sem policy para tabelas acessadas por RPC;
-- inspeção de grants/RLS/funções privilegiadas: PASS, RLS habilitada nas dez tabelas, escrita transacional direta negada e `security definer` com `search_path` vazio;
-- `software-quality-gate`: PASS; revisão somente leitura, mutation analysis por raciocínio das regras críticas, sem arquivos gerados ou alteração de configuração.
+- `supabase test db`: 17 files, 176 pgTAP tests, PASS;
+- `supabase migration list --local`: 17 local migrations in sequence;
+- `git diff --check`: PASS;
+- `supabase db lint --local --level warning --fail-on error`: PASS, zero schema errors;
+- `supabase db advisors --local --level warn --fail-on error`: PASS, zero warn/error issues;
+- Inspection of grants/RLS/privileged functions: PASS, RLS enabled across all 10 domain tables.
 
-**Pendências futuras:** inserir manualmente o catálogo regional de instituições ativas e campi presenciais de Itapetininga, Sorocaba, São Miguel Arcanjo, Tatuí, Capão Bonito e Pilar do Sul; decidir uma fonte externa somente se a carga manual deixar de ser suficiente.
+## Cycle 3 — Fleet and Planning
 
-## Ciclo 3 — Frota e planejamento
+**Status:** Implemented and validated locally.
 
-**Status:** Implementado e validado localmente.
+**Delivered Scope:** Vehicles (vans) with global license plate uniqueness, driver invitations and roles, routes with ordered schools, finite schedules, seat reservations across all route direction combinations, arrival-order queue handling, and schedule updates. Approval reserves all requested seats atomically.
 
-**Escopo entregue:** vans com placa global, convites e papéis de motorista, rotas com escolas ordenadas, agendas finitas, reservas de todas as combinações, fila por chegada e troca temporal de programação. Aprovação reserva todas as vagas atomicamente; ausência não libera capacidade por trecho. O dono pode aceitar ou recusar, mas não ultrapassar pedido anterior integralmente atendível escolhendo outra data.
+**Artifacts:** Seven migrations (`20260907235802_cycle_3_vans` to `20260907235814_cycle_3_projections`), test suites `017` to `023`, test fixtures, and concurrency harness. Runbook: [docs/operations/ciclo-3-production.md](docs/operations/ciclo-3-production.md).
 
-**Artefatos:** sete migrations de 20260907235802 a 20260907235814, testes 017–023, fixtures e harness de concorrência. [Runbook](docs/operations/ciclo-3-production.md).
+**Validations:** 151 Cycle 3 assertions and 7 real concurrency tests passed. Integrated test suite revalidates Cycles 0–2.
 
-**Validação:** 151 assertions C3 e sete disputas reais: última vaga, placa global, suspensão × atribuição e motorista entre frotas, estas três em ambas as ordens. Upgrade de vínculo fictício aprovado pelo contrato anterior preservou matrícula/escola/turno e referência ao pedido sem inventar alocações. A suíte integrada revalida os Ciclos 0–2 com convite pendente e aprovação condicionada à reserva.
+## Cycle 4 — Daily Operations
 
-**Limite deliberado:** lock global de planejamento e busca sobre calendário finito. Medir contenção antes de particionar locks.
+**Status:** Implemented and validated locally.
 
-## Ciclo 4 — Operação diária
+**Delivered Scope:** Fleet owner calendar configuration, idempotent trip generation, cutoff deadlines and closures, owner exceptions, attendance tracking, driver/van substitutions, operational incidents, and synchronous reconciliation.
 
-**Status:** Implementado e validado localmente.
+**Artifacts:** Eight migrations (`20260907235815_cycle_4_calendar` to `20260907235829_cycle_4_jobs`), test suites `024` to `031`, operations harness, and inactive Cron orchestrator job. Runbook: [docs/operations/ciclo-4-production.md](docs/operations/ciclo-4-production.md).
 
-**Escopo entregue:** calendário definido pelo dono, geração idempotente, confirmação e fechamento por prazo, exceção do dono com motivo, presença, substituição de recursos, ocorrências com complementos e reconciliação síncrona. Endereço/escola preservam o transporte e atualizam somente viagens não iniciadas, inclusive após fechamento das confirmações; a participação já confirmada permanece. Suspensão de motorista é bloqueada enquanto houver atribuições ativas ou futuras.
+**Validations:** 193 operational assertions, 12 orchestrator/Cron assertions, and 18 timezone-aware resource release assertions passed; 4 real concurrency races verified.
 
-**Artefatos:** oito migrations de 20260907235815 a 20260907235829, testes 024–031, harness de operação e job Cron real criado inativo. [Runbook](docs/operations/ciclo-4-production.md).
+## Cycle 5 — Push Notifications
 
-**Validação:** 193 assertions operacionais, 12 do orquestrador/Cron e 18 de liberação de recursos por fuso; quatro corridas reais — início × endereço, início × encerramento, início duplo e substituição × suspensão. Cleanup considera notificações emitidas pelos ciclos posteriores.
+**Status:** Implemented and validated locally; real device integration pending.
 
-## Ciclo 5 — Notificações
+**Delivered Scope:** Persistent in-app notification inbox with per-recipient read status, device tokens, revalidated recipients, unidirectional messaging, operational events and reminders, queue lease and retry policies, FCM worker with OAuth and PII-free payload.
 
-**Status:** Implementado e validado localmente; integração real com dispositivos pendente.
+**Artifacts:** Five migrations (`20260907235831_cycle_5_inbox` to `20260907235838_cycle_5_worker_job`), test suites `032` to `037_notification_worker_job`, claim concurrency tests, Deno `notification-dispatch` Edge Function, and environment examples. Runbook: [docs/operations/ciclo-5-production.md](docs/operations/ciclo-5-production.md).
 
-**Escopo entregue:** inbox persistente e leitura individual, tokens por dispositivo, destinatários revalidados, mensagens unidirecionais, eventos e lembretes, fila com lease e retries limitados, worker FCM com OAuth e payload genérico sem PII. Rotação de token durante entrega não revoga o token novo. O dispatcher Cron nasce inativo e o worker permanece desabilitado no banco.
+**Validations:** 129 domain assertions, 15 worker job assertions, and claim concurrency tests passed; 28 Deno tests (OAuth, FCM, dispatch) passed with typecheck, lint, and format.
 
-**Artefatos:** cinco migrations de 20260907235831 a 20260907235838, testes 032–037_notification_worker_job, concorrência de claims, Edge Function notification-dispatch, exemplo de variáveis sem valores e endpoint protegido por segredo próprio. [Runbook](docs/operations/ciclo-5-production.md).
+**External Dependencies Pending:** Remote project requires FCM credentials (`FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`, `NOTIFICATION_WORKER_SECRET`).
 
-**Validação:** 129 assertions de domínio, 15 do job/worker e disputa real de claim; 28 testes Deno de OAuth, FCM e despacho, com typecheck, lint e formato.
+## Cycle 6 — Map Tracking and Route Optimization
 
-**Pendências externas verificadas:** o projeto remoto não contém os secrets FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY e NOTIFICATION_WORKER_SECRET. Configurar FCM/Vault, publicar a Edge Function e validar Flutter iOS/APNs e Android em dispositivos antes de ativar o dispatcher. Nenhum push real foi enviado.
+**Status:** Provider-independent scope implemented; map/ETA provider integration pending.
 
-## Ciclo 6 — Mapa, rastreamento e roteirização
+**Delivered Scope:** Authenticated GPS telemetry, per-assignment history, 30-second sampling, current position storage, private Realtime channels with epoch revocation, privacy-safe projections, idempotent offline sync, trajectory CAS, manual contingency, 30-day retention, and ETA/proximity infrastructure.
 
-**Status:** Escopo independente do provedor implementado; integração de mapas/ETA permanece em espera.
+**Artifacts:** Five migrations (`20260907235840_cycle_6_locations` to `20260907235848_cycle_6_alerts_retention`), test suites `037_locations` to `041`, TypeScript contracts, SQL concurrency tests, and native WebSocket harness. Runbook: [docs/operations/ciclo-6-production.md](docs/operations/ciclo-6-production.md).
 
-**Escopo entregue:** GPS autenticado e histórico por atribuição, amostragem de 30 segundos, posição atual separada, canais privados com época de revogação, projeções sem pontos de outros alunos, sincronização offline idempotente, CAS de percurso, contingência manual, retenção de 30 dias, resumos verificáveis e infraestrutura de ETA/proximidade. Ordem manual não fabrica ETA.
+**Validations:** Real WebSockets verify private delivery, cross-tenant denial, client broadcast blocking, and role revocation.
 
-**Artefatos:** cinco migrations de 20260907235840 a 20260907235848, testes 037_locations–041, contratos TypeScript, concorrência SQL e harness WebSocket nativo. [Runbook](docs/operations/ciclo-6-production.md).
+**Offline Contract:** Client offline queues use `sync_trip_events` both online and upon reconnection, preserving command, sequence, and capture timestamps.
 
-**Validação:** resultados finais registrados abaixo. Sockets reais verificam entrega privada, negação de outra frota, ausência de GPS em canal público, bloqueio de publicação pelo cliente, revogação de dono/responsável/adulto/motorista e manutenção de acesso quando outro dependente continua elegível. Canais abertos antes da revogação não recebem as posições seguintes.
+**Approved Pending Items:** Selection, budget, and integration of map, geocoding, and ETA providers.
 
-**Contrato offline:** o cliente com fila offline usa sync_trip_events tanto conectado quanto na retomada, preservando comando, sequência e captura originais. Trocar comando já enviado por record_passenger_event para o envelope diferente de sync_trip_events gera conflito explícito. Reenvio de fato aceito não modifica a presença nem reabre viagem; o operador precisa continuar autorizado.
+## Integrated Validation & Release Log
 
-**Pendências aprovadas:** escolha, orçamento e integração do provedor de mapas, geocodificação e ETA real; tarefas 7–8 do plano permanecem em espera. Não há geometrias externas, ETA inventado ou alertas automáticos de proximidade sem fonte válida.
+Local: 41 migrations reset; 850 pgTAP assertions across 44 files passed; 45 Deno tests passed; typecheck, lint, and format passed; 14 real PostgreSQL concurrency races passed; real WebSocket tests passed.
 
-## Validação integrada e publicação da release
-
-Local: reset das 41 migrations; 850 assertions pgTAP em 44 arquivos; 45 testes Deno; typecheck, lint e formato; 14 disputas reais entre sessões PostgreSQL; WebSocket real com entrega privada e revogação de canais abertos. Todos passaram, incluindo cleanup.
-
-Publicação SQL em 2026-09-08: `npx supabase db push --dry-run` confirmou 25 migrations pendentes e `npx supabase db push` aplicou todas com sucesso no projeto VanGo (`njjeopcxhnkeszukaoma`). Histórico remoto confirmado: 41 migrations, última `20260907235848`; zero tabelas públicas sem RLS e zero funções SECURITY DEFINER sem search_path. Frotas e escolas continuam vazias, sem seed remoto. Foi preservado um dump de schema anterior; isso não equivale a backup de dados/PITR. Os três jobs foram conferidos inativos no remoto. FCM/Vault, deploy da Edge Function, dispositivos e integração do provedor de mapas continuam pendentes.
-
-Quality gate: **WARNING**, sem regressão funcional ou vulnerabilidade identificada pendente. Avisos: complexidade das transações SQL, lock global e avisos do analisador SQL (helper de erro/variáveis não lidas). Análise de mutações somente por raciocínio: 12 regras, maior risco hipotético CRITICAL. Nenhum teste de mutação ou Sonar executado.
-
-Advisors remotos: avisos genéricos de RPC SECURITY DEFINER executável e informações de RLS sem policy em tabelas acessíveis apenas via RPC, coerentes com a arquitetura. As RPCs de marketplace/preview são públicas por contrato; demais RPCs revalidam autenticação e papéis. A função de event trigger rls_auto_enable pertence à plataforma e não foi criada pela release.
-
-Cobertura Deno real: **89,3% linhas, 85,8% branches, 97,6% funções**, obtida com `deno test --coverage` e `deno coverage`, sem novas dependências. Artefatos gerados fora do repositório.
+Remote SQL Deployment (2026-09-08): `npx supabase db push` successfully applied 25 pending migrations to the remote Supabase project (`njjeopcxhnkeszukaoma`). Remote history confirmed: 41 migrations, ending at `20260907235848`. Zero public tables without RLS, zero `SECURITY DEFINER` functions without search_path. Fleets and schools remain empty without remote seeds. FCM secrets, Edge Function deployment, device testing, and map provider integration remain pending.

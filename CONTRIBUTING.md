@@ -1,174 +1,174 @@
-# VanGo — diretrizes de desenvolvimento
+# VanGo — Development Guidelines
 
-Este documento define as regras inegociáveis de engenharia para todo o projeto VanGo (Backend Supabase e Frontend Flutter). Toda IA (agente de código) ou desenvolvedor humano **DEVE ler e seguir estritamente estas diretrizes antes de planejar e antes de implementar qualquer código no repositório**. Não adicione um servidor Node.js ou uma camada paralela de autenticação sem uma nova decisão arquitetural aprovada.
+This document defines the non-negotiable engineering rules for the entire VanGo project (Supabase Backend and Flutter Frontend). Every AI coding agent and human developer **MUST read and strictly follow these guidelines before planning and before implementing any code in the repository**. Do not add a Node.js server or a parallel authentication layer without an approved architectural decision.
 
-## 1. Princípios
+## 1. Core Principles
 
-- **TDD Obrigatório:** toda mudança ou adição de comportamento inicia obrigatoriamente por um teste automatizado que falha antes de existir o código produtivo.
-- **Idioma estritamente em Inglês:** todo código-fonte, nomes de variáveis, classes, funções, comentários, documentação técnica inline, mensagens de commit e descrições de testes devem estar em **Inglês**.
-- **Qualidade estática e cobertura:** nenhum código é aceito sem validação de lint (zero warnings e zero errors) e sem geração de relatório de cobertura de testes (coverage).
-- Faça a menor alteração segura para o comportamento em desenvolvimento.
-- Preserve o contrato aprovado e o isolamento multi-tenant.
-- Use nomes claros e mantenha cada arquivo, classe, migração e função com uma única responsabilidade.
-- Evite abstrações antecipadas, duplicação e lógica de autorização no cliente.
-- Trate falhas de forma explícita. Não use `catch` vazio nem esconda erros.
-- Não misture refactors sem relação com a entrega atual.
-- Registre toda decisão que altere domínio, segurança ou contrato.
+- **Mandatory TDD:** Every change or behavior addition strictly begins with an automated test that fails before productive code exists.
+- **Strict English-Only Policy:** All source code, variable names, class names, function names, inline comments, docstrings, technical documentation, commit messages, and test descriptions must be written in **US English (en-US)**.
+- **Static Quality & Coverage:** No code is accepted without lint validation (zero warnings and zero errors) and test coverage report generation.
+- Make the smallest safe change for the feature under development.
+- Preserve approved contracts and multi-tenant isolation.
+- Use clear names and keep every file, class, migration, and function dedicated to a single responsibility.
+- Avoid premature abstractions, code duplication, and client-side authorization logic.
+- Handle failures explicitly. Do not use empty `catch` blocks or swallow errors.
+- Do not mix unrelated refactorings into the current delivery.
+- Record every architectural, security, or domain decision.
 
-## 2. TDD estrito (Test-Driven Development)
+## 2. Strict TDD (Test-Driven Development)
 
-Toda alteração de comportamento em qualquer camada do sistema — **Banco de dados/RLS, Edge Functions ou Frontend Flutter** — começa obrigatoriamente por um teste automatizado. O ciclo inegociável é:
+Every behavior change in any system layer — **Database/RLS, Edge Functions, or Flutter Frontend** — strictly starts with an automated test. The non-negotiable cycle is:
 
-1. **Red:** escreva um teste unitário, de widget ou de integração focado e execute-o. Confirme que ele falha especificamente pela ausência exata do comportamento esperado (não por erro de sintaxe ou compilação acidental).
-2. **Green:** implemente somente o código estritamente necessário para fazer o teste passar.
-3. **Refactor:** melhore legibilidade, arquitetura, nomes e tipagem mantendo todos os testes verdes.
-4. Repita o ciclo para o próximo comportamento ou fatia vertical.
+1. **Red:** Write a focused unit, widget, or integration test and run it. Confirm that it fails specifically due to the absence of the expected behavior (not due to syntax errors or accidental compilation failures).
+2. **Green:** Implement only the minimum strictly required code to make the test pass.
+3. **Refactor:** Improve readability, architecture, names, and typing while keeping all tests passing green.
+4. Repeat the cycle for the next behavior or vertical slice.
 
-Regras inegociáveis do TDD:
-- **Proibido codificar antes do teste:** Não escreva a implementação antes de ter o teste vermelho executado e confirmado.
-- **Sem suítes monolíticas vermelhas:** Não crie uma bateria gigante de testes vermelhos para implementar tudo depois. Trabalhe em pequenos passos incrementais (*baby steps*).
-- **Evidência no relato:** Guarde evidência do ciclo `RED` e `GREEN` nos relatórios de execução da IA ou nos PRs.
-- **Bugs:** Toda correção de defeito inicia com a escrita de um teste que reproduz o bug antes de corrigi-lo.
-- **RLS e Políticas:** Mudanças em RLS começam com um teste negativo de acesso e um teste positivo do papel autorizado.
-- **Flutter:** Regras de negócio (Controllers, Blocs, Cubits, Repositories, UseCases) e comportamentos de Widgets devem nascer a partir de testes automatizados (`flutter test`).
+Non-negotiable TDD Rules:
+- **No Coding Before Testing:** Do not write implementation code prior to executing and verifying a failing red test.
+- **No Monolithic Red Test Suites:** Do not create a massive batch of red tests to implement all at once. Work in small incremental steps (*baby steps*).
+- **Evidence in Reports:** Retain evidence of the `RED` and `GREEN` cycles in AI execution logs or PR descriptions.
+- **Bug Fixes:** Every bug fix begins by writing a test that reproduces the bug before fixing it.
+- **RLS and Policies:** RLS policy updates start with a negative access test and a positive authorized role test.
+- **Flutter:** Business rules (Controllers, Blocs, Cubits, Repositories, UseCases) and Widget behaviors must be created from automated tests (`flutter test`).
 
-## 3. Estratégia de testes, Lint e Cobertura
+## 3. Testing Strategy, Linting, and Coverage
 
-### 3.1 Banco e RLS (PostgreSQL)
+### 3.1 Database and RLS (PostgreSQL)
 
-Os testes de banco (via pgTAP) devem cobrir:
+Database tests (via pgTAP) must cover:
 
-- constraints e integridade referencial;
-- transações e concorrência relevante;
-- transições de estado válidas e inválidas;
-- acesso permitido para cada papel;
-- acesso negado entre tenants;
-- chamadas anônimas;
-- uso de UUID conhecido de outro tenant;
-- imutabilidade de histórico e auditoria;
-- funções RPC e seus códigos de erro.
+- Constraints and referential integrity;
+- Relevant transactions and concurrency;
+- Valid and invalid state transitions;
+- Permitted access for each role;
+- Denied access across tenants;
+- Anonymous calls;
+- Usage of known UUIDs from another tenant;
+- Audit history immutability;
+- RPC functions and their error codes.
 
-Cada tabela com `fleet_id` precisa de teste que use ao menos dois tenants. Um teste que cobre somente o caminho autorizado não valida isolamento.
+Every table containing `fleet_id` requires a test using at least two distinct tenants. A test covering only the authorized path does not validate tenant isolation.
 
 ### 3.2 Edge Functions (Deno / TypeScript)
 
-Edge Functions devem ter testes unitários para transformação, validação e tratamento de falhas. Integrações externas usam fakes ou servidores controlados nos testes; a suíte comum não consome APIs pagas.
+Edge Functions must have unit tests for data transformation, validation, and error handling. External integrations must use fakes or controlled test servers; standard test suites must not consume paid APIs.
 
-Teste timeouts, resposta inválida, limite do provedor, repetição idempotente e indisponibilidade. Segredos nunca aparecem em fixtures, snapshots ou logs.
+Test timeouts, invalid responses, provider limits, idempotent retries, and service unavailability. Secrets must never appear in fixtures, snapshots, or log outputs.
 
-### 3.3 Realtime e jobs
+### 3.3 Realtime and Scheduled Jobs
 
-Teste a autorização do canal privado, o bloqueio fora de uma viagem ativa e a rejeição de um motorista não atribuído. Jobs agendados precisam ser idempotentes e testados como funções invocáveis sem esperar o relógio real.
+Test authorization on private channels, blocking outside active trips, and rejection of unassigned drivers. Scheduled jobs must be idempotent and tested as invokable functions without relying on real clock progression.
 
-### 3.4 Flutter e Dart (Frontend Mobile)
+### 3.4 Flutter and Dart (Frontend Mobile)
 
-No diretório `vango_app`, os testes devem abranger:
+In the `vango_app` directory, test suites must cover:
 
-- **Testes Unitários (`test/unit/...`):** Regras de validação, modelos de domínio, mapeamento JSON/DTO, serviços de API, repositórios e gerenciamento de estado (Bloc/Cubit/Notifier).
-- **Testes de Widget (`test/widget/...`):** Renderização de componentes compartilhados, estados visuais de formulários, validações dinâmicas de campos, respostas a cliques e transições de tela.
-- **Testes de Integração (`integration_test/...`):** Fluxos críticos ponta a ponta (como fluxo de autenticação e alternância de telas).
+- **Unit Tests (`test/unit/...`):** Validation rules, domain models, JSON/DTO mapping, API services, repositories, and state management (Bloc/Cubit/Notifier).
+- **Widget Tests (`test/widget/...`):** Rendering of shared components, form visual states, dynamic field validations, click responses, and screen navigation.
+- **Integration Tests (`integration_test/...`):** Critical end-to-end user flows (e.g., authentication flow and screen navigation).
 
-### 3.5 Análise Estática e Lint (Obrigatório após implementação)
+### 3.5 Static Analysis and Linting (Mandatory Post-Implementation)
 
-Ao término de qualquer implementação ou alteração, a suíte de lint deve ser executada e passar com **tolerância ZERO** para erros e avisos:
+Upon completing any implementation or change, static analysis must be executed and pass with **ZERO tolerance** for errors or warnings:
 
 - **Flutter / Dart:**
-  - Executar: `flutter analyze`
-  - Requisito: **0 issues found** (sem erros, avisos ou lints pendentes).
-  - Formatação: Executar `dart format --output=none --set-exit-if-changed .` para garantir conformidade total com o guia oficial de estilo Dart.
+  - Command: `flutter analyze`
+  - Requirement: **0 issues found** (zero errors, warnings, or pending lints).
+  - Formatting: Run `dart format --output=none --set-exit-if-changed .` to guarantee full compliance with the official Dart style guide.
 - **Supabase / Edge Functions:**
-  - Executar: `deno lint` e `deno check` nas funções alteradas.
-- **Banco de Dados:**
-  - Executar: `supabase db lint` antes de submeter migrações.
+  - Command: `deno lint` and `deno check` on modified functions.
+- **Database:**
+  - Command: `supabase db lint` prior to submitting migrations.
 
-### 3.6 Cobertura de Código (Test Coverage)
+### 3.6 Code Coverage
 
-Todo novo comportamento deve possuir cobertura de testes automatizados com relatório gerado:
+All new functionality must have automated test coverage with generated reports:
 
 - **Flutter / Dart:**
-  - Executar: `flutter test --coverage`
-  - Saída: arquivo padronizado `coverage/lcov.info`.
-  - **Meta mínima:** mínimo de **80% de cobertura** nas camadas de lógica de negócio (`domain/`, `core/utils/`, `blocs/`, `cubits/`, `services/`, `repositories/`).
-  - Para validação rápida local de limites de cobertura: recomenda-se o uso de ferramentas como `lcov` (`genhtml coverage/lcov.info -o coverage/html`) ou utilitários Dart como `coverde check 80`.
+  - Command: `flutter test --coverage`
+  - Output: Standardized `coverage/lcov.info` file.
+  - **Minimum Threshold:** At least **80% coverage** across business logic layers (`domain/`, `core/utils/`, `blocs/`, `cubits/`, `services/`, `repositories/`).
+  - For quick local coverage verification: Use tools such as `lcov` (`genhtml coverage/lcov.info -o coverage/html`) or Dart utilities such as `coverde check 80`.
 - **Edge Functions:**
-  - Executar: `deno test --coverage=cov_profile`.
+  - Command: `deno test --coverage=cov_profile`.
 
-### 3.7 Validação final
+### 3.7 Final Checklist Verification
 
-Antes de declarar qualquer etapa concluída:
+Before declaring any phase completed:
 
-- execute toda a suíte de testes relevante (`flutter test`, `deno test`, testes pgTAP);
-- execute a análise estática (`flutter analyze`, `deno lint`);
-- verifique a cobertura de testes e garanta que novas lógicas estejam cobertas;
-- execute a checagem de formatação (`dart format`);
-- confira migrações do zero se houver mudanças de schema;
-- procure por logs temporários, segredos e comentários desnecessários;
-- garanta que todo código e comentários novos estejam em **Inglês**;
-- confira `git diff --check`;
-- confira `git status` antes e depois da finalização.
+- Execute the full relevant test suite (`flutter test`, `deno test`, pgTAP tests);
+- Run static analysis (`flutter analyze`, `deno lint`);
+- Verify test coverage and ensure all new logic is covered;
+- Run code formatting checks (`dart format`);
+- Verify migrations from scratch if schema changes occurred;
+- Check for temporary logs, secrets, or redundant code comments;
+- Ensure all code, comments, and documentation are strictly in **US English**;
+- Run `git diff --check`;
+- Inspect `git status` before and after completion.
 
-## 4. Migrações PostgreSQL
+## 4. PostgreSQL Migrations
 
-- Versione toda mudança de schema em `supabase/migrations`.
-- Não crie tabelas, triggers, funções, extensões ou policies manualmente no projeto remoto.
-- Migrações aplicadas são imutáveis; corrija o schema com uma nova migração.
-- Use UUIDs ou identificadores ordenáveis conforme a necessidade documentada.
-- Declare `NOT NULL`, `UNIQUE`, `CHECK`, `FOREIGN KEY` e ações de remoção de forma explícita.
-- Indexe chaves estrangeiras, `fleet_id` e colunas usadas em policies e filtros frequentes.
-- Use `timestamptz` para instantes e armazene horários recorrentes com fuso explícito.
-- Prefira exclusão lógica quando a entidade participa de histórico operacional.
-- Evite arrays de chaves estrangeiras. Use tabelas de relacionamento, como `route_schools`.
-- Preserve snapshots de viagens concluídas; não derive histórico de dados cadastrais mutáveis.
+- Version control all schema changes under `supabase/migrations`.
+- Never create tables, triggers, functions, extensions, or policies manually in remote projects.
+- Applied migrations are immutable; modify schemas via new migration scripts.
+- Use UUIDs or sortable identifiers as documented.
+- Explicitly declare `NOT NULL`, `UNIQUE`, `CHECK`, `FOREIGN KEY`, and deletion cascades.
+- Index foreign keys, `fleet_id`, and columns frequently referenced in policies and queries.
+- Use `timestamptz` for timestamps and store recurring schedules with explicit time zones.
+- Prefer soft deletes when an entity is part of operational history.
+- Avoid foreign key arrays. Use junction tables such as `route_schools`.
+- Preserve snapshots of completed trips; do not derive historical data from mutable record tables.
 
-`seed.sql` deve conter apenas dados fictícios e seguros para desenvolvimento local.
+`seed.sql` must contain mock data safe for local development only.
 
-## 5. Multi-tenancy e RLS
+## 5. Multi-tenancy and RLS
 
-A frota é o tenant. Toda entidade operacional deve carregar `fleet_id`, mesmo quando ele puder ser inferido por outra relação, se isso fortalecer policies, índices e auditoria sem criar inconsistência.
+The fleet represents the tenant. Every operational entity must include `fleet_id`, even when inferable from another relationship, strengthening policies, index efficiency, and auditing.
 
-Regras obrigatórias:
+Mandatory Rules:
 
-- habilite RLS em toda tabela exposta;
-- use `auth.uid()` para identificar o usuário;
-- valide associação ativa e papel dentro do mesmo `fleet_id`;
-- não confie em papel, usuário ou tenant enviados pelo Flutter;
-- bloqueie acesso cruzado mesmo quando o solicitante conhece o UUID;
-- exponha somente projeções sanitizadas no marketplace;
-- mantenha dados de menores, residências e rotas fora de consultas públicas;
-- escreva policies para cada operação necessária; ausência de policy deve negar acesso;
-- teste `SELECT`, `INSERT`, `UPDATE` e `DELETE` separadamente quando aplicáveis.
+- Enable RLS on every exposed table;
+- Use `auth.uid()` to identify the calling user;
+- Validate active membership and assigned role within the same `fleet_id`;
+- Never trust roles, user IDs, or tenant IDs passed directly from Flutter;
+- Prevent cross-tenant access even if a user provides a valid foreign UUID;
+- Expose only sanitized projections in the marketplace;
+- Keep student minor data, home addresses, and route details out of public queries;
+- Write explicit policies for every required operation; missing policies default to denied access;
+- Test `SELECT`, `INSERT`, `UPDATE`, and `DELETE` operations separately where applicable.
 
-Evite policies recursivas entre associações e papéis. Helpers privados podem consultar permissões. Funções `security definer` exigem:
+Avoid recursive policies between associations and roles. Private helpers may inspect permissions. Functions using `security definer` require:
 
-- `search_path` explícito e seguro;
-- schema não exposto;
-- permissões revogadas por padrão;
-- `GRANT` somente aos papéis necessários;
-- validação interna de `auth.uid()` e `fleet_id`;
-- testes negativos dedicados.
+- Explicit, safe `search_path`;
+- Non-exposed schema;
+- Default revoked permissions;
+- `GRANT` statements restricted strictly to required roles;
+- Internal validation of `auth.uid()` and `fleet_id`;
+- Dedicated negative access tests.
 
-Nunca coloque `service_role` ou outra chave secreta no Flutter.
+Never store `service_role` or other secret keys in Flutter.
 
-## 6. Auth e perfis
+## 6. Auth and User Profiles
 
-O Supabase Auth gerencia e-mail, senha, confirmação, sessão e recuperação. Não crie `password_hash`, JWT próprio ou refresh token alternativo.
+Supabase Auth manages email/password credentials, email confirmations, session tokens, and password recovery. Do not create custom `password_hash`, custom JWT tokens, or custom refresh tokens.
 
-`profiles` estende `auth.users` com dados de domínio. Um trigger pode criar o registro mínimo, mas não deve usar metadados editáveis para conceder acesso.
+`profiles` extends `auth.users` with domain data. A trigger can initialize minimal profile records, but must not grant permissions based on unverified user metadata.
 
-O usuário pode completar o perfil sem confirmar o e-mail. Operações que afetam terceiros, como criar frota, convidar ou solicitar vínculo, exigem confirmação.
+Users can complete profile setup before email confirmation. However, operations affecting third parties (e.g., creating a fleet, inviting users, requesting student linking) require confirmed emails.
 
-## 7. Database Functions e contratos
+## 7. Database Functions and API Contracts
 
-Use RPC para operações que:
+Use RPC functions for operations that:
 
-- alteram várias tabelas;
-- validam capacidade ou conflito;
-- mudam papéis;
-- executam transições de estado;
-- produzem auditoria junto à ação;
-- exigem lock ou idempotência.
+- Update multiple tables transactionally;
+- Validate capacity limits or schedule conflicts;
+- Modify user roles;
+- Execute state machine transitions;
+- Produce audit records alongside actions;
+- Require locking or idempotency guarantees.
 
-Uma função deve validar autenticação, tenant, papel, estado atual e invariantes. Retorne tipos estáveis. Erros de domínio precisam de códigos previsíveis, como:
+Functions must validate authentication, tenant membership, user role, current state, and domain invariants. Return stable data types. Domain errors must return predictable codes, such as:
 
 - `email_unverified`;
 - `forbidden`;
@@ -178,56 +178,56 @@ Uma função deve validar autenticação, tenant, papel, estado atual e invarian
 - `invalid_transition`;
 - `last_owner`.
 
-O Flutter deve mapear o código, não o texto da mensagem. Não exponha stack trace, SQL interno ou dados de outro tenant.
+Flutter applications must map these error codes rather than parsing error message strings. Never expose stack traces, raw SQL error details, or cross-tenant data.
 
-## 8. Edge Functions e integrações
+## 8. Edge Functions and Integrations
 
-Use Edge Functions para APIs externas, push, geocodificação e roteirização. Não mova CRUD simples para Edge Functions.
+Use Edge Functions for third-party APIs, push notifications, geocoding, and routing. Do not migrate standard CRUD operations to Edge Functions.
 
-- Valide o JWT do Supabase e a autorização de domínio.
-- Leia segredos somente do ambiente seguro.
-- Defina timeout e política de repetição.
-- Use idempotency key em operações repetíveis.
-- Normalize respostas externas antes de devolvê-las ao Flutter.
-- Registre métricas e contexto sem tokens, endereços completos ou coordenadas desnecessárias.
-- Centralize clientes compartilhados em `supabase/functions/_shared` somente quando houver reutilização real.
+- Validate Supabase JWTs and domain authorization.
+- Read secrets exclusively from secure environment variables.
+- Configure explicit timeouts and retry strategies.
+- Use idempotency keys for repeatable operations.
+- Normalize external API responses before returning data to Flutter.
+- Log operational context without exposing authorization tokens, full addresses, or raw student coordinates.
+- Centralize shared helper code in `supabase/functions/_shared` only when genuine reuse exists.
 
-Nenhum provedor externo pode ser fixado antes da pesquisa e decisão registradas no plano técnico.
+No third-party service provider may be adopted prior to documented evaluation in the technical plan.
 
-## 9. Realtime e localização
+## 9. Realtime and Location Tracking
 
-- Use somente canais privados por viagem.
-- Autorize leitura e escrita por associação, papel e participação.
-- Aceite transmissão apenas do motorista atribuído e durante `trip.active`.
-- Envie no broadcast somente posição e contexto operacional mínimo.
-- Nunca transmita endereços ou paradas residenciais de alunos.
-- Aplique a filtragem no backend; esconder marcadores na interface não protege dados.
-- Persista amostras em frequência menor que o fluxo ao vivo.
-- Remova pontos brutos após 30 dias.
-- Preserve resumos e eventos operacionais conforme o plano técnico.
+- Use private channels scoped per trip.
+- Authorize channel access by membership, role, and active trip participation.
+- Accept location streams exclusively from assigned drivers during active `trip.active` status.
+- Broadcast only minimum required coordinates and operational status.
+- Never stream student home addresses or residential stop points.
+- Enforce location filtering at the backend level; hiding UI markers does not protect data.
+- Persist telemetry samples at a lower frequency than live stream feeds.
+- Purge raw GPS points after 30 days.
+- Retain operational summaries and events according to the technical plan.
 
-## 10. Auditoria e observabilidade
+## 10. Auditing and Observability
 
-Audite ações sensíveis na mesma transação da mudança. Inclua tenant, autor, ação, entidade e contexto mínimo. Não copie payloads inteiros para `metadata`.
+Audit sensitive actions within the same database transaction as the state change. Record tenant, actor, action, entity, and minimal context. Do not copy full payloads into audit `metadata`.
 
-Registre falhas operacionais com correlação suficiente para diagnóstico. Logs não podem conter:
+Log operational failures with adequate correlation IDs for diagnosis. Logs must NEVER contain:
 
-- senhas ou tokens;
-- chaves de API;
-- endereço residencial completo;
-- coordenadas de alunos sem necessidade operacional;
-- payloads completos de provedores;
-- dados pessoais de outro tenant.
+- Passwords or tokens;
+- API keys;
+- Complete home addresses;
+- Unnecessary student coordinates;
+- Full third-party provider payloads;
+- Personal data belonging to another tenant.
 
-## 11. Privacidade
+## 11. Privacy
 
-Dados de menores e localização exigem minimização por padrão. Cada consulta deve responder apenas com os campos necessários ao papel e à ação.
+Data related to minors and live locations requires default minimization. Every database query must return only fields necessary for the given role and operation.
 
-O responsável ou aluno adulto recebe posição da van, ETA, escolas e o próprio ponto. Somente dono e motorista atribuído recebem a rota operacional completa. A API não deve retornar dados proibidos para que o Flutter os esconda depois.
+Guardians and adult students receive van location, ETA, school names, and their own stop location. Only fleet owners and assigned drivers receive the complete operational route. The backend API must never return unauthorized fields with the expectation that Flutter will hide them.
 
-## 12. Git e revisão
+## 12. Git and Code Review
 
-Use branches curtas e Conventional Commits:
+Use short-lived feature branches and strict Conventional Commits formatting:
 
 - `feat(scope): ...`
 - `fix(scope): ...`
@@ -235,56 +235,57 @@ Use branches curtas e Conventional Commits:
 - `refactor(scope): ...`
 - `docs(scope): ...`
 
-Não faça commit ou push sem autorização explícita. Preserve alterações locais que não pertencem à tarefa. Antes e depois de editar, confira `git status` e limite o diff aos arquivos autorizados.
+Do not commit or push without explicit authorization. Preserve unrelated local workspace changes. Inspect `git status` before and after editing, limiting diffs to authorized files.
 
-Uma revisão deve priorizar:
+Code reviews prioritize:
 
-1. **Crítico:** vazamento entre tenants, exposição de menores, segredo no cliente ou corrupção de dados;
-2. **Alto:** quebra de contrato, bypass de autorização, corrida de capacidade ou transição inválida;
-3. **Médio:** falha de tratamento, consulta ineficiente relevante ou histórico inconsistente;
-4. **Baixo:** problema localizado de manutenção ou clareza;
-5. **Sugestão:** melhoria sem impacto funcional imediato.
+1. **Critical:** Cross-tenant leaks, minor privacy exposure, client secrets, or data corruption;
+2. **High:** Contract breakage, authorization bypass, race conditions, or invalid state transitions;
+3. **Medium:** Missing error handling, inefficient queries, or historical data inconsistencies;
+4. **Low:** Localized maintainability or code clarity issues;
+5. **Suggestion:** Non-functional improvements without immediate operational impact.
 
-Evite comentários cosméticos sem efeito prático.
+Avoid superficial code review comments without practical benefit.
 
-## 13. Definição de pronto (Definition of Done)
+## 13. Definition of Done (DoD)
 
-Uma etapa de implementação só é considerada concluída e pronta para PR/merge quando:
+An implementation phase is considered complete and ready for PR/merge only when:
 
-- **TDD executado com evidência:** todos os novos comportamentos começaram por um teste vermelho válido (`RED`) antes da implementação produtiva (`GREEN`);
-- **Testes passam integralmente:** testes unitários, de widgets e de integração passam com 100% de sucesso (`flutter test`, `deno test`, testes pgTAP);
-- **Lint estrito verificado:** `flutter analyze` reporta 0 issues (zero avisos e zero erros) e `deno lint` passa sem inconformidades;
-- **Formatação conferida:** `dart format` validado sem alterações pendentes;
-- **Cobertura de testes gerada:** `flutter test --coverage` (ou `deno test --coverage`) executado com a meta mínima de 80% atendida nas regras de negócio;
-- **Idioma 100% em Inglês:** todo o código, nomes de arquivos, identificadores, comentários e mensagens de commit estão estritamente em Inglês;
-- **Migrações idempotentes e limpas:** migrações funcionam a partir de um banco zerado;
-- **RLS completa:** RLS possui cenários validados de autorização e negação entre tenants;
-- **Erros tipados e tratados:** falhas mapeadas em contratos e códigos previsíveis;
-- **Limpeza de código:** nenhum segredo, log temporário, código comentado ou TODO sem referência permanece;
-- **Git limpo:** `git diff --check` passa e `git status` final contém apenas os arquivos previstos pela tarefa.
+- **TDD Executed with Evidence:** All new behaviors started with a verified failing test (`RED`) prior to productive implementation (`GREEN`);
+- **Tests Pass 100%:** Unit, widget, and integration tests pass with 100% success (`flutter test`, `deno test`, pgTAP tests);
+- **Strict Lint Verified:** `flutter analyze` reports 0 issues (zero warnings, zero errors) and `deno lint` passes cleanly;
+- **Code Formatted:** `dart format` passes without pending changes;
+- **Test Coverage Threshold Met:** `flutter test --coverage` (or `deno test --coverage`) achieves the minimum 80% coverage on business logic;
+- **100% US English Standard:** All code, file names, identifiers, comments, documentation, and commit messages are strictly in US English (en-US);
+- **Clean Idempotent Migrations:** Migrations execute flawlessly on a fresh database instance;
+- **Complete RLS Policies:** RLS includes validated positive access and negative isolation test cases across tenants;
+- **Typed & Handled Errors:** Failures map to domain error codes;
+- **Code Cleanliness:** No secrets, temporary debug logs, commented code, or unreferenced TODOs remain;
+- **Clean Git State:** `git diff --check` passes and `git status` contains only files intended for the task.
 
-Não chame uma implementação de concluída sem essas evidências.
+Do not declare an implementation complete without this empirical evidence.
 
-## 14. Padrão de Idioma (English-Only Policy)
+## 14. Language Standard (Portuguese UI / English Code & Docs)
 
-Todo o repositório deve manter um padrão internacional de código. É **estritamente obrigatório** o uso de **Inglês** nos seguintes escopos:
+The repository enforces a hybrid language standard: **Portuguese (pt-BR)** for end-user UI strings and **US English (en-US)** for all technical code, documentation, comments, and database schemas.
 
-1. **Código-fonte:**
-   - Nomes de arquivos e pastas (`user_repository.dart`, `login_screen.dart`);
-   - Nomes de classes, métodos, funções, variáveis e constantes (`class VehicleTracker`, `fetchActiveRoutes()`, `final String userEmail`);
-   - Schemas de banco de dados, tabelas, colunas e triggers PostgreSQL (`fleet_id`, `created_at`, `is_active`);
-   - Nomes de rotas e parâmetros.
+1. **Source Code:**
+   - File and folder names (`user_repository.dart`, `login_screen.dart`);
+   - Class, method, function, variable, and constant names (`class VehicleTracker`, `fetchActiveRoutes()`, `final String userEmail`);
+   - Database schemas, table names, column names, and triggers (`fleet_id`, `created_at`, `is_active`);
+   - Route names and parameters.
 
-2. **Comentários e Documentação de Código:**
-   - Todos os comentários de linha (`//`), de bloco (`/* */`) e de documentação (`///`) devem ser redigidos exclusivamente em **Inglês**;
-   - Anotações de migrações e comentários SQL (`--`) em Inglês.
+2. **Comments and Code Documentation:**
+   - All inline comments (`//`), block comments (`/* */`), and docstrings (`///`) must be written in **US English**;
+   - Migration notes and SQL comments (`--`) in US English.
 
-3. **Mensagens de Commit e PRs:**
-   - Mensagens de commit no padrão Conventional Commits em Inglês (exemplo: `feat(auth): add email and password validation rules`, `test(widget): add widget test for custom text field`);
-   - Títulos de Pull Requests e descrições técnicas de código em Inglês.
+3. **Commit Messages and PRs:**
+   - Conventional Commits formatted commit messages in US English (`feat(auth): add email and password validation rules`, `test(widget): add widget test for custom text field`);
+   - Pull Request titles and descriptions in US English.
 
-4. **Testes Automatizados:**
-   - Descrições de grupos (`group('AuthRepository', () { ... })`) e testes (`test('should return user when credentials are valid', ...)` ou `testWidgets('renders login button disabled when form is empty', ...)`).
+4. **Automated Testing:**
+   - Group descriptions (`group('AuthRepository', () { ... })`) and test descriptions (`test('should return user when credentials are valid', ...)` or `testWidgets('renders login button disabled when form is empty', ...)`).
 
-> **Observação sobre textos da interface (UI Copy):**
-> Textos exibidos na tela para os usuários finais brasileiros no app (labels, placeholders, mensagens ao usuário) podem estar em Português (pt-BR) diretamente ou via arquivos de internacionalização (l10n/i18n). No entanto, as chaves identificadoras e a lógica de internacionalização no código devem permanecer sempre em Inglês (exemplo: `AppStrings.loginWelcomeMessage`).
+5. **User-Facing UI Copy (pt-BR):**
+   - Text displayed directly on screens for end users in the app (button labels, field labels, placeholders, titles, validator error messages, snackbars, dialog copy) MUST be in **Portuguese (pt-BR)**.
+   - Code identifiers, variable names, classes, keys, and logic handling UI strings remain strictly in **English**.

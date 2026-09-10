@@ -98,7 +98,7 @@ values
     '51000000-0000-0000-0000-000000000001',
     'Demo Fleet',
     'demo-fleet',
-    'Frota fictícia para desenvolvimento local',
+    'Mock fleet for local development',
     'published',
     '50000000-0000-0000-0000-000000000001'
   ),
@@ -106,7 +106,7 @@ values
     '51000000-0000-0000-0000-000000000002',
     'Backup Fleet',
     'backup-fleet',
-    'Segunda frota fictícia para validar isolamento',
+    'Second mock fleet to validate isolation',
     'draft',
     '50000000-0000-0000-0000-000000000004'
   )
