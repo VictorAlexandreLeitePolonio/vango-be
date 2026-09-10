@@ -2,6 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 \ir ../_helpers.psql
+\ir ../_approval.psql
 
 select plan(15);
 select pg_temp.seed_cycle_2_users();
@@ -50,10 +51,18 @@ from public.fleet_join_requests r
 join public.students s on s.id = r.student_id
 where s.full_name in ('Teste Menor Enrollment', 'Teste Adulto Enrollment');
 select set_config('request.jwt.claims', '{"sub":"60000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+insert into enrollment_test_ids(kind, id)
+select 'approval-schedule', pg_temp.seed_approval_schedule(
+  (select id from enrollment_test_ids where kind = 'minor-request')
+);
 set local role authenticated;
 select lives_ok(
-  $$select public.decide_fleet_join_request((select id from enrollment_test_ids where kind = 'minor-request'), 'approved')$$,
-  'owner approves minor request'
+  $$select public.approve_transport_request(
+    (select id from enrollment_test_ids where kind = 'minor-request'),
+    jsonb_build_array(jsonb_build_object('schedule_id',
+      (select id from enrollment_test_ids where kind = 'approval-schedule'), 'weekday', 1)),
+    current_date + 1)$$,
+  'owner approves minor request with the required reservation'
 );
 select is(
   (select status from public.list_fleet_join_requests('61000000-0000-0000-0000-000000000001', 'approved', 50, 0) where student_full_name = 'Teste Menor Enrollment'),

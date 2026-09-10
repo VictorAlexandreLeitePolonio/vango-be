@@ -2,9 +2,9 @@
 
 ## 1. Status and Purpose
 
-This document records the approved architecture for the VanGo MVP. Cycles 0, 1, and 2 are fully implemented locally in Supabase; vans, routes, operations, map tracking, and push notifications remain planned for subsequent cycles.
+This document records the approved architecture for the VanGo MVP. Cycles 0–5 and the provider-independent scope of Cycle 6 are fully implemented and validated in the local Supabase environment. The release log and external pending items are documented in [deliverables.md](./deliverables.md).
 
-The mobile client will be developed in Flutter. This repository contains the complete Supabase backend. There will be no custom Node.js API server, custom JWT tokens, custom `bcrypt` implementations, or custom Socket.io servers in the MVP.
+The mobile client will be developed in Flutter for iOS and Android, following the decision approved on 2026-09-07. This repository contains the complete Supabase backend. There will be no custom Node.js API server, custom JWT tokens, custom `bcrypt` implementations, or custom Socket.io servers in the MVP.
 
 ## 2. Product Scope
 
@@ -52,7 +52,7 @@ The backend utilizes native Supabase services where they reduce complexity witho
 - **Row Level Security (RLS):** Row-level authorization and tenant isolation across fleets;
 - **Database Functions/RPC:** Transactional commands and critical business logic rules;
 - **Realtime Broadcast:** Live van position streaming via private per-trip channels;
-- **Edge Functions:** External integrations, geocoding, route optimization, and push notifications;
+- **Edge Functions:** Route optimization, geocoding, push notifications, and third-party integrations;
 - **Storage:** Avatars, fleet logos, and future attachments;
 - **Cron Jobs:** Trip generation, confirmation cutoffs, and raw GPS retention cleanup.
 
@@ -78,7 +78,7 @@ supabase/
     └── _shared/
 ```
 
-Migrations are the sole valid mechanism for applying database schema changes.
+The repository already contains the local database and test structure for Cycles 0–2; Edge Functions are added in their respective cycles. Migrations are the sole valid mechanism for applying database schema changes.
 
 ## 4. Identity, Tenants, and Roles
 
@@ -270,11 +270,17 @@ Every minor student has exactly one active primary guardian and can have multipl
 
 If no seat capacity exists, requests enter a waitlisted status. Capacity evaluates contracted vehicle seat limits, not temporary daily absences.
 
+**Approval Decision (Approved 2026-09-07 for Cycle 3):** Request approval must reserve all requested seats across target days and directions atomically. Validating capacity/conflicts, registering assignments, creating the link, and approving the request occur in the same transaction. Partial approvals or partial seat reservations are strictly prohibited.
+
+**Invitations (Approved 2026-09-07):** Accepting a fleet invitation creates a `pending` request without creating an active link or reserving capacity until owner approval.
+
+**Waitlist & Seniority (Approved 2026-09-07):** Priority is determined by request creation timestamp. Among fully compatible pending requests, the oldest request is evaluated first.
+
 ### 6.4 Vans and Vehicle Assignments
 
 `vans` belongs to a fleet and includes:
 
-- License plate;
+- Unique license plate across all active vehicle registrations globally;
 - Vehicle model, public identification name, and seating capacity;
 - Operational status;
 - Summarized public details for marketplace previews;
@@ -282,7 +288,11 @@ If no seat capacity exists, requests enter a waitlisted status. Capacity evaluat
 
 The MVP targets up to 30 students per van. Seating capacity remains configurable.
 
-A route maintains default van and driver assignments. Daily trips clone these defaults to preserve history. Owners can perform single-trip driver or vehicle substitutions with mandatory justifications and audit logs.
+**License Plate Uniqueness & Deactivation:** A license plate identifies at most one active van record across the entire platform. Vehicle deactivation is blocked if active trips or future route assignments remain.
+
+**Driver Assignments & Suspensions:** Driver invitations require explicit email confirmation. Owners must possess the `driver` role to be assigned to routes. Suspending a driver or removing the `driver` role is blocked while active trips or future assignments remain.
+
+**Emergency Substitutions:** Owners can substitute vehicles or drivers during active trips with mandatory justifications and audit trails.
 
 ### 6.5 Recurrent Routes
 
@@ -310,7 +320,11 @@ A pickup route starts at the van departure point, proceeds through confirmed hom
 
 `route_student_schedules` configures which weekdays a student utilizes a route. Morning pickup and afternoon drop-off operate independently.
 
+**Schedule Changes & Reconfirmation:** Approved schedule changes take effect starting on the next service day where confirmation windows remain open. Affected future trips require reconfirmation by guardians or adult students.
+
 ### 6.6 Service Days and Daily Trips
+
+**Calendar Exceptions:** Fleet owners can configure service calendar overrides per route or fleet-wide. Deactivating service cancels uninitiated trips without ending enrollments or releasing recurring seat reservations.
 
 `service_days` groups morning and afternoon trips operating on the same calendar date.
 
@@ -363,12 +377,12 @@ Driver or vehicle substitutions and temporary detours log previous config, new c
 
 Live location streaming uses a private Supabase Realtime channel `trip:{trip_id}`. Only assigned drivers can publish location points. Fleet owners monitor all active trips. Guardians and adult students listen strictly to trips where their student is `confirmed`.
 
-Tracking activates when a trip transitions to `active` and terminates upon `completed` or `cancelled`.
-
 Role-based location visibility:
 
 - Owner and driver receive full operational route geometries;
 - Guardians and adult students receive live van coordinates, school stops, ETA, their specific stop location, and approximate generalized route geometries.
+
+**Tracking Revocation & Offline Sync:** Student drop-off or absence automatically revokes live tracking access. During connectivity loss, mobile apps store offline GPS samples and sync them via `sync_trip_events` upon reconnection.
 
 Raw GPS telemetry points are purged after 30 days. Operational summaries, total distance, duration, timetables, incident logs, and audit entries are retained permanently.
 
@@ -381,17 +395,21 @@ Calculation strategy:
 1. Recalculate base routes when students, home addresses, schools, or vehicle assignments change;
 2. Generate daily trip records via cron without invoking external routing APIs;
 3. Accept passenger confirmations until cutoff deadlines;
-4. Recalculate route geometry upon cutoff closure only if the confirmed passenger manifest changed;
+4. Recalculate route geometry upon cutoff closure only if input parameters changed;
 5. Freeze operational route version for execution;
 6. Recalculate exceptionally following authorized detours or incidents.
 
-The MVP supports up to 30 students per vehicle plus school stops. Provider selection evaluates stop limits, regional accuracy, ETA reliability, pricing, and storage compliance terms.
+Manual stop ordering acts as a contingency when external routing APIs fail.
 
 ### 6.10 Push Notifications
 
 `device_tokens` stores FCM/APNs tokens per user, device, and platform.
 
 `notifications` logs notification content, category, tenant ID, target audience, and source entity. `notification_deliveries` tracks delivery attempts, outcomes, and deduplication keys.
+
+**Push Provider:** Firebase Cloud Messaging (FCM) via HTTP v1 API with server-side credentials for Flutter iOS and Android.
+
+**In-App Notification Inbox:** Notifications are retained in-app with per-recipient read status.
 
 Automated notification triggers:
 
@@ -406,7 +424,7 @@ Automated notification triggers:
 
 Proximity alerts evaluate live ETA calculations rather than static radial distances. A deduplication key prevents repetitive spam alerts.
 
-Fleet owners can broadcast custom push messages across fleets, routes, trips, vans, or individual users. Drivers select pre-defined incident categories with optional text notes restricted to active trips.
+Fleet owners can broadcast custom push messages across fleets, routes, trips, vans, or individual users. Drivers select pre-defined incident categories with optional notes exclusively within their active trip context.
 
 ## 7. Core Workflows
 
@@ -424,8 +442,8 @@ Fleet owners can broadcast custom push messages across fleets, routes, trips, va
 1. Guardian or adult student filters published fleets by city and covered school.
 2. User provides full private residential address details.
 3. System saves an address snapshot into the link request.
-4. Fleet owner approves or rejects the request.
-5. Upon approval, system establishes the active enrollment, assigns derived membership roles, and creates audit entries.
+4. Fleet owner approves or rejects the request; fully compatible requests respect seniority.
+5. Upon approval, system establishes active enrollment, assigns derived roles, reserves seats, and creates audit logs.
 
 ### 7.3 Trip Generation and Confirmation
 
@@ -435,7 +453,7 @@ Fleet owners can broadcast custom push messages across fleets, routes, trips, va
 4. System dispatches reminder notifications prior to cutoff deadlines.
 5. Unresponsive pending passengers transition to `expired` at cutoff time.
 6. Confirmed passengers enter the final optimized route manifest.
-7. System recalculates route geometry only if passenger manifest changed.
+7. System recalculates route geometry when passenger manifests or stop configurations change.
 
 ### 7.4 Trip Execution
 
@@ -502,16 +520,18 @@ Retention cleanup cron jobs delete expired records without storing sensitive dat
 
 1. **Multi-tenant Foundation:** Local Supabase environment, Auth, `profiles`, `fleets`, memberships, roles, RLS policies, and auditing (Completed locally in Cycle 1).
 2. **Marketplace and Linkings:** Empty school catalog, commercial cities, `students`, `student_guardians`, invitations, join requests, active links, RLS policies, and auditing (Completed locally in Cycle 2).
-3. **Fleet and Planning:** Vehicles (vans), seating capacity, driver assignments, routes, paired directions, school sequence, and weekly schedules.
-4. **Daily Operations:** `service_days`, `trips`, passenger manifests, directional confirmations, substitutions, and operational states.
-5. **Tracking and Incidents:** Private Realtime streaming, GPS telemetry, privacy-safe location views, incidents, and data retention cleanup.
-6. **Route Optimization and Notifications:** Geocoding, route optimization, ETA calculations, push notifications, deduplication, and external API integrations.
+3. **Fleet and Planning:** Vans, seating capacity, drivers, routes, paired directions, school sequence, schedules, reservations, transport queue, and schedule changes.
+4. **Daily Operations:** Calendar, `service_days`, `trips`, passenger manifests, confirmations, presence, substitutions, incidents, and operational states.
+5. **Notifications:** Notification inbox, read status, push dispatch, unidirectional messages, operational events, deduplication, and alert expiration.
+6. **Map, Tracking, and Route Optimization:** GPS telemetry, private Realtime streams, offline sync, privacy-safe visibility, retention, geocoding, route optimization, and ETA; integration of proximity alerts with Cycle 5.
 
 ## 12. Locally Implemented Cycles Summary
 
 Cycle 1 delivered local Supabase setup, ordered migrations, automatic profile creation, transactional fleet creation, multi-role memberships, private RLS helpers, audit logging, local seed data, and documentation.
 
-Cycle 2 added `schools`, commercial city coverage, `students`, `student_guardians`, invitations, join requests, enrollments, RPC functions, and sanitized audit logging. The school catalog remains empty without mock schools or importer scripts.
+Cycle 2 added `schools`, commercial city coverage, `students`, `student_guardians`, invitations, join requests, enrollments, RPC functions, and sanitized audit logging.
+
+Cycles 3–6 delivered vehicle/driver management, route scheduling, daily trip orchestration, notifications, FCM integration, offline sync, and location tracking.
 
 ## 13. Strict TDD Requirement
 
@@ -526,10 +546,10 @@ Every implementation phase strictly adheres to Test-Driven Development:
 
 ## 14. Pending Service Decisions
 
-The following third-party integrations will be evaluated prior to their respective cycles:
+The following third-party integrations will be evaluated prior to deployment:
 
 - Official school/university catalog API data sources;
 - Geocoding, distance matrix, route optimization, and ETA provider API;
-- Server-side push notification provider (FCM / APNs / OneSignal);
-- GPS sampling rate and persistence interval strategy;
+- FCM/APNs credentials and configuration for the approved push notification provider;
+- Adaptive GPS sampling frequency and persistence interval strategy;
 - Data retention legal compliance policies.

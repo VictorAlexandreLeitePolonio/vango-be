@@ -2,6 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 \ir ../_helpers.psql
+\ir ../_approval.psql
 
 select plan(11);
 select pg_temp.seed_foundation();
@@ -63,10 +64,18 @@ select throws_ok(
 
 reset role;
 select set_config('request.jwt.claims', '{"sub":"40000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+insert into privacy_test_ids(kind, id)
+select 'approval-schedule', pg_temp.seed_approval_schedule(
+  (select id from privacy_test_ids where kind = 'request')
+);
 set local role authenticated;
 select lives_ok(
-  $$select public.decide_fleet_join_request((select id from privacy_test_ids where kind = 'request'), 'approved')$$,
-  'tenant owner approves own request'
+  $$select public.approve_transport_request(
+    (select id from privacy_test_ids where kind = 'request'),
+    jsonb_build_array(jsonb_build_object('schedule_id',
+      (select id from privacy_test_ids where kind = 'approval-schedule'), 'weekday', 1)),
+    current_date + 1)$$,
+  'tenant owner approves own request with allocation'
 );
 select is(
   (select count(*)::integer from public.audit_events where action = 'join_request_approved' and fleet_id = '41000000-0000-0000-0000-000000000001'),

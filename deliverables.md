@@ -17,10 +17,10 @@ This file records only features, files, migrations, and validation test results 
 | 0 | Local Setup & Environment | Completed | 2026-09-05 |
 | 1 | Multi-Tenant Foundation | Completed | 2026-09-05 |
 | 2 | Marketplace & Linkings | Completed locally | 2026-09-06 |
-| 3 | Fleet & Planning | Not started | — |
-| 4 | Daily Operations | Not started | — |
-| 5 | Push Notifications | Not started | — |
-| 6 | Map Tracking & Route Optimization | Not started | — |
+| 3 | Fleet & Planning | Backend validated; see pending items below | 2026-09-08 |
+| 4 | Daily Operations | Backend validated; see pending items below | 2026-09-08 |
+| 5 | Push Notifications | Backend validated; see pending items below | 2026-09-08 |
+| 6 | Map Tracking & Route Optimization | Backend validated; see pending items below | 2026-09-08 |
 
 ## Cycle 0 — Local Setup & Environment
 
@@ -117,29 +117,57 @@ This file records only features, files, migrations, and validation test results 
 - `supabase migration list --local`: 17 local migrations in sequence;
 - `git diff --check`: PASS;
 - `supabase db lint --local --level warning --fail-on error`: PASS, zero schema errors;
-- `supabase db advisors --local --type all --level warn --fail-on error`: PASS, zero warn/error issues;
+- `supabase db advisors --local --level warn --fail-on error`: PASS, zero warn/error issues;
 - Inspection of grants/RLS/privileged functions: PASS, RLS enabled across all 10 domain tables.
 
 ## Cycle 3 — Fleet and Planning
 
-**Status:** Not started
+**Status:** Implemented and validated locally.
 
-**Log:** No implementation deliverables recorded.
+**Delivered Scope:** Vehicles (vans) with global license plate uniqueness, driver invitations and roles, routes with ordered schools, finite schedules, seat reservations across all route direction combinations, arrival-order queue handling, and schedule updates. Approval reserves all requested seats atomically.
+
+**Artifacts:** Seven migrations (`20260907235802_cycle_3_vans` to `20260907235814_cycle_3_projections`), test suites `017` to `023`, test fixtures, and concurrency harness. Runbook: [docs/operations/ciclo-3-production.md](docs/operations/ciclo-3-production.md).
+
+**Validations:** 151 Cycle 3 assertions and 7 real concurrency tests passed. Integrated test suite revalidates Cycles 0–2.
 
 ## Cycle 4 — Daily Operations
 
-**Status:** Not started
+**Status:** Implemented and validated locally.
 
-**Log:** No implementation deliverables recorded.
+**Delivered Scope:** Fleet owner calendar configuration, idempotent trip generation, cutoff deadlines and closures, owner exceptions, attendance tracking, driver/van substitutions, operational incidents, and synchronous reconciliation.
+
+**Artifacts:** Eight migrations (`20260907235815_cycle_4_calendar` to `20260907235829_cycle_4_jobs`), test suites `024` to `031`, operations harness, and inactive Cron orchestrator job. Runbook: [docs/operations/ciclo-4-production.md](docs/operations/ciclo-4-production.md).
+
+**Validations:** 193 operational assertions, 12 orchestrator/Cron assertions, and 18 timezone-aware resource release assertions passed; 4 real concurrency races verified.
 
 ## Cycle 5 — Push Notifications
 
-**Status:** Not started
+**Status:** Implemented and validated locally; real device integration pending.
 
-**Log:** No implementation deliverables recorded.
+**Delivered Scope:** Persistent in-app notification inbox with per-recipient read status, device tokens, revalidated recipients, unidirectional messaging, operational events and reminders, queue lease and retry policies, FCM worker with OAuth and PII-free payload.
+
+**Artifacts:** Five migrations (`20260907235831_cycle_5_inbox` to `20260907235838_cycle_5_worker_job`), test suites `032` to `037_notification_worker_job`, claim concurrency tests, Deno `notification-dispatch` Edge Function, and environment examples. Runbook: [docs/operations/ciclo-5-production.md](docs/operations/ciclo-5-production.md).
+
+**Validations:** 129 domain assertions, 15 worker job assertions, and claim concurrency tests passed; 28 Deno tests (OAuth, FCM, dispatch) passed with typecheck, lint, and format.
+
+**External Dependencies Pending:** Remote project requires FCM credentials (`FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`, `NOTIFICATION_WORKER_SECRET`).
 
 ## Cycle 6 — Map Tracking and Route Optimization
 
-**Status:** Not started
+**Status:** Provider-independent scope implemented; map/ETA provider integration pending.
 
-**Log:** No implementation deliverables recorded.
+**Delivered Scope:** Authenticated GPS telemetry, per-assignment history, 30-second sampling, current position storage, private Realtime channels with epoch revocation, privacy-safe projections, idempotent offline sync, trajectory CAS, manual contingency, 30-day retention, and ETA/proximity infrastructure.
+
+**Artifacts:** Five migrations (`20260907235840_cycle_6_locations` to `20260907235848_cycle_6_alerts_retention`), test suites `037_locations` to `041`, TypeScript contracts, SQL concurrency tests, and native WebSocket harness. Runbook: [docs/operations/ciclo-6-production.md](docs/operations/ciclo-6-production.md).
+
+**Validations:** Real WebSockets verify private delivery, cross-tenant denial, client broadcast blocking, and role revocation.
+
+**Offline Contract:** Client offline queues use `sync_trip_events` both online and upon reconnection, preserving command, sequence, and capture timestamps.
+
+**Approved Pending Items:** Selection, budget, and integration of map, geocoding, and ETA providers.
+
+## Integrated Validation & Release Log
+
+Local: 41 migrations reset; 850 pgTAP assertions across 44 files passed; 45 Deno tests passed; typecheck, lint, and format passed; 14 real PostgreSQL concurrency races passed; real WebSocket tests passed.
+
+Remote SQL Deployment (2026-09-08): `npx supabase db push` successfully applied 25 pending migrations to the remote Supabase project (`njjeopcxhnkeszukaoma`). Remote history confirmed: 41 migrations, ending at `20260907235848`. Zero public tables without RLS, zero `SECURITY DEFINER` functions without search_path. Fleets and schools remain empty without remote seeds. FCM secrets, Edge Function deployment, device testing, and map provider integration remain pending.

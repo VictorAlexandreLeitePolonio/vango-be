@@ -4,7 +4,7 @@ Backend for VanGo, a mobile Flutter application for managing school and universi
 
 ## Repository Status
 
-The project features a reproducible local Supabase environment with Cycles 1 and 2 implemented locally. The educational institutions catalog remains empty by scope decision; map and operational domains remain scheduled for subsequent cycles.
+The backend for Cycles 0–5 and the provider-independent scope of Cycle 6 are fully implemented and validated in the local Supabase environment. The educational institutions catalog remains empty. FCM device setup and map/ETA provider integrations remain pending; see the release log and validations in [deliverables.md](./deliverables.md).
 
 Cycle 2 delivers database schemas, RLS policies, public search capabilities, and RPC functions for students, guardians, join requests, invitations, and active links. No automated importer, external integrations, real school loading, email dispatch, or Flutter UI code is included in Cycle 2.
 
@@ -52,6 +52,8 @@ Primary guardians create minor student profiles, while adult students create the
 
 Owners can also invite guardians or adult students. Flutter retains the token during sign-up/login callbacks; the backend stores only the SHA-256 hash and accepts invitations only for matching confirmed emails. Secondary guardians receive derived access to the dependent's active links.
 
+Approval requires full seat allocation in the same transaction; accepting an invitation creates a pending request. New requests and schedule changes compete for seats by seniority among fully compatible entries, subject to owner acceptance or rejection.
+
 The `schools` catalog contains no real data in this cycle. Future regional imports will be seeded directly in Supabase without a dedicated importer script or public API.
 
 ### Fleet and Routes
@@ -95,13 +97,13 @@ State changes record exact timestamps and location coordinates. QR code scanning
 
 Location tracking starts when the driver initiates a `trip` and ends upon trip completion or cancellation. Fleet owners can monitor all active trips across their fleet.
 
-Guardians and adult students monitor only trips in which their linked student is confirmed. They receive live van coordinates, current school stop, ETA, their specific stop point, and an approximate public route geometry. The backend NEVER returns private residential addresses, student identities, stop points of other passengers, or full geometries that could expose another student's home location.
+Guardians and adult students monitor only trips in which the student is confirmed, up until drop-off or recorded absence. Other eligible dependents retain guardian access. They receive current van coordinates, school stop, ETA, and their specific stop location; any route representation must preserve privacy. The backend NEVER returns private residential addresses, student identities, stop points of other passengers, or full geometries that could expose another student's home location.
 
 Raw GPS coordinates are retained for 30 days. Trip summaries, distance, duration, timetables, delays, incidents, boarding/drop-off records, and audit logs are retained indefinitely.
 
 ### Route Optimization
 
-Base routes are recalculated whenever students, home addresses, schools, or assignments change. Daily trip creation does not call the external routing provider. Upon confirmation cutoff, the service recalculates routes only if the confirmed passenger manifest changes. Exceptional incidents can trigger emergency recalculations.
+Base routes are recalculated whenever students, home addresses, schools, or assignments change. Daily trip creation does not call the external routing provider. Upon confirmation cutoff, the service compares the complete revision of inputs, not just passenger manifests. Profile updates apply to the next uninitiated trip, preserving active trip routes. Exceptional incidents can trigger an authorized emergency recalculation.
 
 The MVP supports up to 30 students per van, plus departure points and school stops. Routing provider evaluation must assess stop limits, regional coverage, ETA accuracy, and cost. If an API request exceeds maximum waypoint limits, the service will split the calculation without altering domain models.
 
@@ -141,14 +143,25 @@ Core Rules:
 
 1. **Multi-tenant Foundation:** Local Supabase environment, Auth, profiles, fleets, memberships, multi-role support, RLS policies, and auditing — completed locally in Cycle 1.
 2. **Marketplace and Linkings:** Empty school catalog, commercial coverage, student profiles, guardians, join requests, invitations, active links, privacy rules, and auditing — completed locally in Cycle 2. Preferences, vehicle capacity checks, and waitlist logic deferred.
-3. **Fleet and Planning:** Vans, capacity management, driver management, routes, ordered school stops, weekly schedules, and assignments.
-4. **Daily Operations:** Service days, trip generation, confirmations, driver/van substitutions, and attendance tracking.
-5. **Tracking and Incidents:** Private Realtime tracking, GPS processing, privacy-safe visibility, detours, delays, and data retention policies.
-6. **Route Optimization and Notifications:** Route optimization, ETA calculations, geocoding, push notifications, and external API integrations.
+3. **Fleet and Planning:** Vans, capacity management, driver management, routes, ordered school stops, weekly schedules, reservations, transport queue, and schedule changes.
+4. **Daily Operations:** Calendar, service days, trips, confirmations, substitutions, presence, and operational incidents.
+5. **Push Notifications:** Notification inbox with read status, push dispatch, operational events, unidirectional messages, deduplication, and alert expiration.
+6. **Map, Tracking, and Route Optimization:** GPS telemetry, private Realtime streams, offline sync, privacy-safe visibility, retention, route optimization, ETA, and geocoding; integration of proximity alerts with Cycle 5.
 
-Each cycle features its own technical specification and implementation plan. Implementation strictly follows Test-Driven Development (TDD).
+Each phase features its own specification, implementation plan, database migrations, and tests. Cycles 3–6 were developed with RED/GREEN test suites and integrated validation.
+
+Plans for remaining cycles include production setup and deployment, using local environments for staging. Mobile application target is Flutter iOS and Android, with push notifications via Firebase Cloud Messaging (FCM). Evaluation and budgeting for map/routing providers remain pending; full production release of Cycle 6 depends on this definition.
 
 ## Documentation Links
+
+Specs were approved on 2026-09-07. Implementation plans record contracts and tasks; [deliverables.md](./deliverables.md) distinguishes validated implementations from pending external integrations.
+
+| Cycle | Spec | Implementation plan |
+| --- | --- | --- |
+| 3 | [Fleet & Planning](./docs/superpowers/specs/2026-09-07-ciclo-3-frota-planejamento-design.md) | [Cycle 3 Plan](./docs/superpowers/plans/2026-09-07-ciclo-3-frota-planejamento.md) |
+| 4 | [Daily Operations](./docs/superpowers/specs/2026-09-07-ciclo-4-operacao-diaria-design.md) | [Cycle 4 Plan](./docs/superpowers/plans/2026-09-07-ciclo-4-operacao-diaria.md) |
+| 5 | [Notifications](./docs/superpowers/specs/2026-09-07-ciclo-5-notificacoes-design.md) | [Cycle 5 Plan](./docs/superpowers/plans/2026-09-07-ciclo-5-notificacoes.md) |
+| 6 | [Map, Tracking & Route Optimization](./docs/superpowers/specs/2026-09-07-ciclo-6-mapa-rastreamento-roteirizacao-design.md) | [Cycle 6 Plan](./docs/superpowers/plans/2026-09-07-ciclo-6-mapa-rastreamento-roteirizacao.md) |
 
 - [Technical Plan and Domain Model](./be-tech-plan.md)
 - [Development Guidelines](./CONTRIBUTING.md)
@@ -156,3 +169,7 @@ Each cycle features its own technical specification and implementation plan. Imp
 - [Cycle 1 Implementation Plan](./docs/superpowers/plans/2026-09-05-ciclo-1-fundacao-multitenant.md)
 - [Cycle 2 Specification](./docs/superpowers/specs/2026-09-06-ciclo-2-marketplace-vinculos-design.md)
 - [Cycle 2 Implementation Plan](./docs/superpowers/plans/2026-09-06-ciclo-2-marketplace-vinculos.md)
+
+## Backend Validation
+
+Run `python3 supabase/tests/run_database_tests.py` in the local Supabase environment. The runner expands `\ir` includes into temporary files, executes the pgTAP test suite, and cleans up temporary files afterwards without affecting remote environments.

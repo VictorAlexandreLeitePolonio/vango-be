@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 \ir ../_helpers.psql
 
-select plan(10);
+select plan(12);
 select pg_temp.seed_cycle_2_users();
 create temp table fleet_invitation_test_tokens(kind text primary key, token text) on commit drop;
 grant all on fleet_invitation_test_tokens to authenticated;
@@ -68,9 +68,9 @@ reset role;
 select set_config('request.jwt.claims', '{"sub":"60000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 set local role authenticated;
 select is(
-  (select count(*)::integer from public.list_fleet_join_requests('61000000-0000-0000-0000-000000000001', 'approved', 50, 0) where student_full_name = 'Teste Menor Invite'),
+  (select count(*)::integer from public.list_fleet_join_requests('61000000-0000-0000-0000-000000000001', 'pending', 50, 0) where student_full_name = 'Teste Menor Invite'),
   1,
-  'acceptance creates an approved request'
+  'acceptance creates a pending request for allocation'
 );
 select is(
   (select status from public.get_fleet_invitation((select token from fleet_invitation_test_tokens where kind = 'guardian'))),
@@ -79,6 +79,10 @@ select is(
 );
 
 reset role;
+select is((select count(*)::integer from public.fleet_enrollments), 0,
+  'acceptance does not create an enrollment before allocation');
+select is((select count(*)::integer from public.transport_reservations), 0,
+  'acceptance does not reserve seats before approval');
 select set_config('request.jwt.claims', '{"sub":"60000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 set local role authenticated;
 insert into fleet_invitation_test_tokens(kind, token)

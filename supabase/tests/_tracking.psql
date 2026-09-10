@@ -1,0 +1,59 @@
+create or replace function pg_temp.seed_tracking()
+returns void
+language plpgsql
+as $$
+declare
+  v_trip_id uuid;
+  v_assignment_id uuid;
+  v_student_id uuid;
+  v_passenger_id uuid;
+begin
+  perform pg_temp.seed_cycle_4();
+
+  create temp table if not exists tracking_ids(
+    kind text primary key,
+    id uuid not null
+  ) on commit drop;
+  truncate tracking_ids;
+  grant all on tracking_ids to authenticated;
+
+  select id into v_trip_id from operation_ids where kind = 'going';
+  select id into v_assignment_id
+  from public.trip_assignments
+  where trip_id = v_trip_id and valid_until is null;
+  select student_id into v_student_id
+  from public.trip_passengers
+  where trip_id = v_trip_id and removed_at is null
+  order by id
+  limit 1;
+  select id into v_passenger_id
+  from public.trip_passengers
+  where trip_id = v_trip_id and student_id = v_student_id;
+
+  if v_trip_id is null or v_assignment_id is null or v_student_id is null
+    or v_passenger_id is null then
+    raise exception 'tracking fixture did not produce an active assignment';
+  end if;
+
+  update public.trip_passengers
+  set confirmation_status = 'confirmed', confirmation_by = '40000000-0000-0000-0000-000000000001',
+      confirmation_at = clock_timestamp(), operation_status = 'waiting'
+  where trip_id = v_trip_id and removed_at is null;
+  update public.trips
+  set status = 'active',
+      started_at = least(coalesce(started_at, clock_timestamp()), clock_timestamp() - interval '1 minute'),
+      ended_at = null
+  where id = v_trip_id;
+  update public.trip_assignments
+  set valid_from = least(valid_from, clock_timestamp() - interval '1 minute')
+  where id = v_assignment_id;
+
+  insert into tracking_ids(kind, id) values
+    ('trip', v_trip_id),
+    ('assignment', v_assignment_id),
+    ('passenger', v_passenger_id),
+    ('student', v_student_id),
+    ('driver', (select driver_user_id from public.trip_assignments where id = v_assignment_id)),
+    ('fleet', (select fleet_id from public.trips where id = v_trip_id));
+end;
+$$;

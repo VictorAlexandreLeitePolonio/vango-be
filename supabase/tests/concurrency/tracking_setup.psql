@@ -1,0 +1,33 @@
+begin;
+\ir ../_helpers.psql
+\ir ../_planning.psql
+\ir ../_operations.psql
+\ir ../_tracking.psql
+select pg_temp.seed_tracking();
+-- Add another dependent and an adult before starting this disposable trip.
+update public.trips set status='scheduled',started_at=null where id=(select id from tracking_ids where kind='trip');
+do $$
+declare
+ v_kind text; v_user uuid; v_student uuid; v_request uuid;
+begin
+ for v_kind,v_user in select * from (values
+ ('second-dependent','60000000-0000-0000-0000-000000000001'::uuid),
+ ('adult','60000000-0000-0000-0000-000000000003'::uuid)) additions(kind,user_id)
+ loop
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',v_user,'role','authenticated')::text,true);
+  if v_kind='adult' then
+   v_student:=public.create_adult_student('Adulto Socket',current_date-20*365,'18000000','Rua Socket','30',null,'Centro','Cidade Teste','3550000','SP',-23.55,-46.63);
+  else
+   v_student:=public.create_minor_student('Dependente Socket',current_date-10*365,'18000000','Rua Socket','20',null,'Centro','Cidade Teste','3550000','SP',-23.55,-46.63);
+  end if;
+  v_request:=public.submit_fleet_join_request('41000000-0000-0000-0000-000000000001',v_student,(select id from planning_ids where kind='school'),'morning',array['going','return']::text[],array[1,2,3,4,5]::smallint[]);
+  perform set_config('request.jwt.claims','{"sub":"40000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+  perform public.approve_transport_request(v_request,private.find_request_allocation(v_request,current_date+1),current_date+1);
+  insert into tracking_ids(kind,id) values(v_kind,v_student);
+ end loop;
+end;
+$$;
+update public.trip_passengers set confirmation_status='confirmed',operation_status='waiting' where trip_id=(select id from tracking_ids where kind='trip');
+update public.trips set status='active',started_at=clock_timestamp()-interval '1 minute' where id=(select id from tracking_ids where kind='trip');
+select 'VANGO_TRACKING=' || jsonb_object_agg(kind,id)::text from tracking_ids;
+commit;
