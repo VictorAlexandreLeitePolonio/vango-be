@@ -5,12 +5,16 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/vango_button.dart';
 import '../../../shared/widgets/vango_logo.dart';
 import '../../../shared/widgets/vango_text_field.dart';
+import '../services/auth_error_mapper.dart';
+import '../services/auth_service.dart';
 
 /// Password recovery screen.
 ///
-/// Email field with local validation and simulated send.
+/// Email field with local validation and Supabase recovery email request.
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  const ForgotPasswordScreen({super.key, this.authService});
+
+  final AuthService? authService;
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -22,6 +26,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   final _emailController = TextEditingController();
   bool _isLoading = false;
   bool _emailSent = false;
+  late final AuthService _authService;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
@@ -29,6 +34,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   @override
   void initState() {
     super.initState();
+    _authService = widget.authService ?? SupabaseAuthService();
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -52,23 +58,35 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
     setState(() => _isLoading = true);
 
-    // Simulated send — will be replaced by Supabase Auth integration
-    await Future.delayed(const Duration(milliseconds: 1500));
+    try {
+      await _authService.sendPasswordReset(email: _emailController.text);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _isLoading = false;
-      _emailSent = true;
-    });
+      setState(() {
+        _isLoading = false;
+        _emailSent = true;
+      });
 
+      _showMessage(
+        'Link de recuperação enviado para ${_emailController.text.trim()}',
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+      _showMessage(AuthErrorMapper.message(error), isError: true);
+    }
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Link de recuperação enviado para ${_emailController.text.trim()}',
+          message,
           style: AppTextStyles.bodySmall.copyWith(color: AppColors.textLight),
         ),
-        backgroundColor: AppColors.successGreen,
+        backgroundColor: isError ? AppColors.errorRed : AppColors.successGreen,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),

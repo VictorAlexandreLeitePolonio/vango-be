@@ -3,16 +3,19 @@ import 'package:flutter/material.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../services/auth_error_mapper.dart';
+import '../services/auth_service.dart';
 import '../../../shared/widgets/vango_button.dart';
 import '../../../shared/widgets/vango_logo.dart';
 import '../../../shared/widgets/vango_text_field.dart';
 
 /// Login screen.
 ///
-/// Email and password fields with local validation.
-/// Local mock loading state before Supabase integration is wired.
+/// Email and password fields with local validation and Supabase Auth.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.authService});
+
+  final AuthService? authService;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -24,6 +27,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  late final AuthService _authService;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
@@ -31,6 +35,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
+    _authService = widget.authService ?? SupabaseAuthService();
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -55,20 +60,41 @@ class _LoginScreenState extends State<LoginScreen>
 
     setState(() => _isLoading = true);
 
-    // Simulated loading — will be replaced by Supabase Auth integration
-    await Future.delayed(const Duration(milliseconds: 1500));
+    try {
+      final result = await _authService.signIn(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() => _isLoading = false);
+      setState(() => _isLoading = false);
 
+      if (!result.hasSession) {
+        _showMessage(
+          'Não foi possível iniciar sua sessão. Tente novamente.',
+          isError: true,
+        );
+        return;
+      }
+
+      Navigator.pushReplacementNamed(context, AppRoutes.authenticatedHome);
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+      _showMessage(AuthErrorMapper.message(error), isError: true);
+    }
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Login simulado com sucesso!',
+          message,
           style: AppTextStyles.bodySmall.copyWith(color: AppColors.textLight),
         ),
-        backgroundColor: AppColors.successGreen,
+        backgroundColor: isError ? AppColors.errorRed : AppColors.successGreen,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
