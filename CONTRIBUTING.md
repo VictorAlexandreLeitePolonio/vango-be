@@ -265,9 +265,9 @@ An implementation phase is considered complete and ready for PR/merge only when:
 
 Do not declare an implementation complete without this empirical evidence.
 
-## 14. Language Standard (English-Only Policy)
+## 14. Language Standard (Portuguese UI / English Code & Docs)
 
-The entire repository follows an international code standard. The use of **US English (en-US)** is strictly mandatory across all project scopes:
+The repository enforces a hybrid language standard: **Portuguese (pt-BR)** for end-user UI strings and **US English (en-US)** for all technical code, documentation, comments, and database schemas.
 
 1. **Source Code:**
    - File and folder names (`user_repository.dart`, `login_screen.dart`);
@@ -285,3 +285,7 @@ The entire repository follows an international code standard. The use of **US En
 
 4. **Automated Testing:**
    - Group descriptions (`group('AuthRepository', () { ... })`) and test descriptions (`test('should return user when credentials are valid', ...)` or `testWidgets('renders login button disabled when form is empty', ...)`).
+
+5. **User-Facing UI Copy (pt-BR):**
+   - Text displayed directly on screens for end users in the app (button labels, field labels, placeholders, titles, validator error messages, snackbars, dialog copy) MUST be in **Portuguese (pt-BR)**.
+   - Code identifiers, variable names, classes, keys, and logic handling UI strings remain strictly in **English**.

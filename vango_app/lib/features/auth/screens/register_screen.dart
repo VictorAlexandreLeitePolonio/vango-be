@@ -69,7 +69,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Account created successfully! Please check your email.',
+          'Conta criada com sucesso! Verifique seu e-mail.',
           style: AppTextStyles.bodySmall.copyWith(color: AppColors.textLight),
         ),
         backgroundColor: AppColors.successGreen,
@@ -82,41 +82,41 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   String? _validateName(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter your full name';
+      return 'Informe seu nome completo';
     }
     if (value.trim().length < 3) {
-      return 'Name must be at least 3 characters';
+      return 'O nome deve ter pelo menos 3 caracteres';
     }
     return null;
   }
 
   String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter your email';
+      return 'Informe seu e-mail';
     }
     final emailRegex = RegExp(r'^[\w\.\-]+@[\w\-]+\.\w{2,}$');
     if (!emailRegex.hasMatch(value.trim())) {
-      return 'Invalid email address';
+      return 'E-mail inválido';
     }
     return null;
   }
 
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) {
-      return 'Please create a password';
+      return 'Crie uma senha';
     }
     if (value.length < 6) {
-      return 'Password must be at least 6 characters';
+      return 'A senha deve ter pelo menos 6 caracteres';
     }
     return null;
   }
 
   String? _validateConfirmPassword(String? value) {
     if (value == null || value.isEmpty) {
-      return 'Please confirm your password';
+      return 'Confirme sua senha';
     }
     if (value != _passwordController.text) {
-      return 'Passwords do not match';
+      return 'As senhas não coincidem';
     }
     return null;
   }
@@ -149,10 +149,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                   const SizedBox(height: 28),
 
                   // ── Title ─────────────────────────────────
-                  Text('Create your account', style: AppTextStyles.heading2),
+                  Text('Crie sua conta', style: AppTextStyles.heading2),
                   const SizedBox(height: 8),
                   Text(
-                    'Get started with VanGo today',
+                    'Comece a usar o VanGo agora',
                     style: AppTextStyles.subtitle,
                   ),
                   const SizedBox(height: 32),
@@ -160,8 +160,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                   // ── Name field ────────────────────────────
                   VanGoTextField(
                     controller: _nameController,
-                    label: 'Full name',
-                    hint: 'Your name',
+                    label: 'Nome completo',
+                    hint: 'Seu nome',
                     prefixIcon: Icons.person_outline_rounded,
                     keyboardType: TextInputType.name,
                     textInputAction: TextInputAction.next,
@@ -173,8 +173,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                   // ── Email field ───────────────────────────
                   VanGoTextField(
                     controller: _emailController,
-                    label: 'Email',
-                    hint: 'you@email.com',
+                    label: 'E-mail',
+                    hint: 'seu@email.com',
                     prefixIcon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
@@ -186,7 +186,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   // ── Password field ────────────────────────
                   VanGoTextField(
                     controller: _passwordController,
-                    label: 'Password',
+                    label: 'Senha',
                     hint: '••••••',
                     prefixIcon: Icons.lock_outline_rounded,
                     isPassword: true,
@@ -199,7 +199,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   // ── Confirm password field ────────────────
                   VanGoTextField(
                     controller: _confirmPasswordController,
-                    label: 'Confirm password',
+                    label: 'Confirmar senha',
                     hint: '••••••',
                     prefixIcon: Icons.lock_outline_rounded,
                     isPassword: true,
@@ -211,7 +211,7 @@ class _RegisterScreenState extends State<RegisterScreen>
 
                   // ── Submit button ─────────────────────────
                   VanGoButton(
-                    text: 'Create Account',
+                    text: 'Criar Conta',
                     isLoading: _isLoading,
                     onPressed: _handleRegister,
                   ),
@@ -222,7 +222,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Already have an account? ',
+                        'Já tem conta? ',
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.textMuted,
                         ),
@@ -234,7 +234,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                             AppRoutes.login,
                           );
                         },
-                        child: Text('Sign In', style: AppTextStyles.link),
+                        child: Text('Entrar', style: AppTextStyles.link),
                       ),
                     ],
                   ),

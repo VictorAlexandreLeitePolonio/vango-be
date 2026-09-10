@@ -10,9 +10,9 @@ All AI agents and assistants working in this repository **MUST ALWAYS** read and
    - Never implement code before writing and executing a failing test.
    - For Flutter, write unit tests (`test/unit/`) or widget tests (`test/widget/`) before implementing widgets or business logic.
 
-2. **Strict English-Only Policy:**
-   - All code, class names, function names, variable names, database schema identifiers, comments (`//`, `///`), docstrings, commit messages, and test descriptions must be written in **English**.
-   - User-facing UI copy in Portuguese (pt-BR) must use English identifiers and string keys.
+2. **Language Policy (Portuguese UI / English Code & Docs):**
+   - All source code, class names, function names, variable names, database schema identifiers, inline comments (`//`, `///`), docstrings, technical documentation, commit messages, and test descriptions must be written in **English**.
+   - User-facing UI copy in the app (labels, placeholders, buttons, titles, validator error messages, snackbars, dialog texts) MUST be in **Portuguese (pt-BR)** using English identifiers and string keys.
 
 3. **Static Analysis & Linting (Zero Issues Allowed):**
    - After completing any implementation, run `flutter analyze` inside `vango_app`.

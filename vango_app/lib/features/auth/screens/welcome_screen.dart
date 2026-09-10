@@ -125,26 +125,26 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
-                          'Safe and organized\nschool transport',
+                          'Transporte escolar\nseguro e organizado',
                           textAlign: TextAlign.center,
                           style: AppTextStyles.heading2,
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'Connect with fleets, track trips,\nand gain peace of mind',
+                          'Conecte-se com frotas, acompanhe viagens\ne tenha tranquilidade',
                           textAlign: TextAlign.center,
                           style: AppTextStyles.subtitle,
                         ),
                         const Spacer(),
                         VanGoButton(
-                          text: 'Sign In',
+                          text: 'Entrar',
                           onPressed: () {
                             Navigator.pushNamed(context, AppRoutes.login);
                           },
                         ),
                         const SizedBox(height: 14),
                         VanGoButton(
-                          text: 'Create Account',
+                          text: 'Criar Conta',
                           isOutlined: true,
                           onPressed: () {
                             Navigator.pushNamed(context, AppRoutes.register);
