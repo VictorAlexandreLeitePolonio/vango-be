@@ -475,6 +475,7 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
                                 foregroundColor: AppColors.primaryOrangeDark,
+                                minimumSize: const Size(80, 36),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
