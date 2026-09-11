@@ -12,6 +12,9 @@ import '../services/driver_route_service.dart';
 import '../widgets/driver_active_trip_panel.dart';
 import '../widgets/mapbox_route_map.dart';
 
+/// Driver route dashboard screen featuring Mapbox navigation, active trip lifecycle
+/// (start, student boarding, student absence, finish), real-time telemetry streaming (GPS/simulation),
+/// and intelligent proximity alerts when approaching student pickup points.
 class DriverRouteScreen extends StatefulWidget {
   const DriverRouteScreen({
     super.key,
@@ -19,12 +22,16 @@ class DriverRouteScreen extends StatefulWidget {
     this.locationService,
   });
 
+  /// Optional injected route calculation service (defaults to standard instance).
   final DriverRouteService? routeService;
+
+  /// Optional injected telemetry and GPS tracking service (defaults to standard instance).
   final DriverLocationService? locationService;
 
   @override
   State<DriverRouteScreen> createState() => _DriverRouteScreenState();
 }
+
 
 class _DriverRouteScreenState extends State<DriverRouteScreen> {
   late final DriverRouteService _routeService;

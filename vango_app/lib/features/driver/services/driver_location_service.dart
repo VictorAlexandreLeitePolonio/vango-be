@@ -6,11 +6,17 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/route_stop.dart';
 
+/// Operating modes for driver vehicle telemetry and location tracking.
 enum LocationTrackingMode {
+  /// Real GPS reading from device hardware sensors via `geolocator`.
   deviceGps,
+
+  /// Simulated drive traversing route polyline points smoothly at ~35 km/h.
+  /// Ideal for testing on desktop, web, or when outside an active vehicle.
   simulation,
 }
 
+/// Telemetry snapshot emitted during active van movement.
 class VanTelemetryUpdate {
   const VanTelemetryUpdate({
     required this.position,
@@ -22,19 +28,36 @@ class VanTelemetryUpdate {
     this.simulationProgressPercent,
   });
 
+  /// Current geographic coordinates of the vehicle.
   final LatLng position;
-  final double headingDegrees;
-  final double speedKmh;
-  final DateTime timestamp;
-  final double? distanceToNextStopMeters;
-  final RouteStop? approachingStop;
-  final double? simulationProgressPercent; // 0.0 to 1.0
 
+  /// Vehicle bearing/direction in degrees (0° = North, 90° = East, 180° = South, 270° = West).
+  final double headingDegrees;
+
+  /// Approximate vehicle speed in km/h.
+  final double speedKmh;
+
+  /// Recorded timestamp of the telemetry event.
+  final DateTime timestamp;
+
+  /// Geodesic distance in meters to the next student or school stop.
+  final double? distanceToNextStopMeters;
+
+  /// Populated when the vehicle is within close proximity (< 50m) of a stop.
+  final RouteStop? approachingStop;
+
+  /// Percent progress (0.0 to 1.0) along the route polyline during virtual simulation.
+  final double? simulationProgressPercent;
+
+  /// Indicates whether the vehicle has arrived close to a student's pickup/drop-off point.
   bool get isApproachingStop => approachingStop != null;
 }
 
+/// Core telemetry service managing real-time vehicle coordinates, heading calculations,
+/// proximity detection to student pickup points, and dual GPS/simulation operating modes.
 class DriverLocationService {
   DriverLocationService();
+
 
   final _telemetryController = StreamController<VanTelemetryUpdate>.broadcast();
   Stream<VanTelemetryUpdate> get telemetryStream => _telemetryController.stream;
@@ -111,13 +134,21 @@ class DriverLocationService {
     }
   }
 
+  /// Dynamically updates the list of pending stops remaining on the route.
+  /// Re-evaluates distance and proximity triggers with the latest telemetry.
   void updatePendingStops(List<RouteStop> stops) {
     _pendingStops = List.from(stops);
     if (_latestTelemetry != null) {
-      _evaluateProximityAndEmit(_latestTelemetry!.position, _latestTelemetry!.headingDegrees, _latestTelemetry!.speedKmh);
+      _evaluateProximityAndEmit(
+        _latestTelemetry!.position,
+        _latestTelemetry!.headingDegrees,
+        _latestTelemetry!.speedKmh,
+      );
     }
   }
 
+  /// Starts the virtual drive simulation by stepping through the route polyline points
+  /// at 1-second intervals, computing headings between successive points.
   void _startSimulation() {
     if (_routePoints.isEmpty) return;
 
@@ -134,6 +165,7 @@ class DriverLocationService {
       final current = _routePoints[_simulationIndex];
       double heading = 0.0;
 
+      // Calculate bearing angle to point the van in the street direction
       if (_simulationIndex < _routePoints.length - 1) {
         final next = _routePoints[_simulationIndex + 1];
         heading = calculateBearing(current, next);
@@ -154,10 +186,12 @@ class DriverLocationService {
     });
   }
 
+  /// Subscribes to the native mobile device GPS sensor stream via `geolocator`.
+  /// Uses high accuracy and a 5-meter distance filter for smooth updates.
   void _startDeviceGps() {
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 5, // Emite a cada 5 metros percorridos
+      distanceFilter: 5, // Emits an update every 5 meters travelled
     );
 
     _gpsSubscription = Geolocator.getPositionStream(
@@ -178,6 +212,8 @@ class DriverLocationService {
     );
   }
 
+  /// Evaluates geodesic proximity to the next pending stop.
+  /// If distance is less than 50 meters, sets [approachingStop] on the telemetry update.
   void _evaluateProximityAndEmit(
     LatLng currentPos,
     double heading,
@@ -212,6 +248,7 @@ class DriverLocationService {
     }
   }
 
+  /// Stops any active GPS stream subscription or simulation timer.
   void stopTracking() {
     _simulationTimer?.cancel();
     _simulationTimer = null;
@@ -220,12 +257,14 @@ class DriverLocationService {
     _isTracking = false;
   }
 
+  /// Disposes internal streams and cancels timers when service is destroyed.
   void dispose() {
     stopTracking();
     _telemetryController.close();
   }
 
-  /// Calculates azimuth bearing (in degrees: 0° = North, 90° = East, etc.)
+  /// Calculates azimuth bearing in degrees (0° = North, 90° = East, 180° = South, 270° = West)
+  /// using spherical trigonometry from start to end coordinates.
   static double calculateBearing(LatLng start, LatLng end) {
     final startLat = _degreesToRadians(start.latitude);
     final startLng = _degreesToRadians(start.longitude);

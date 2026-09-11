@@ -5,6 +5,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../features/shared/services/mapbox_geocoding_service.dart';
 
+/// Form field providing real-time Mapbox Search / Geocoding autocomplete suggestions
+/// with 350ms debouncing, dropdown selection overlay, and coordinate extraction.
 class MapboxAddressAutocompleteField extends StatefulWidget {
   const MapboxAddressAutocompleteField({
     super.key,
@@ -16,12 +18,24 @@ class MapboxAddressAutocompleteField extends StatefulWidget {
     this.geocodingService,
   });
 
+  /// Text editing controller for the address input.
   final TextEditingController controller;
+
+  /// Callback fired when the user selects a suggested place, providing coordinates and formatted name.
   final ValueChanged<MapboxPlaceSuggestion> onAddressSelected;
+
+  /// Label displayed above the input field.
   final String label;
+
+  /// Placeholder hint text.
   final String hint;
+
+  /// Optional form validation callback.
   final String? Function(String?)? validator;
+
+  /// Optional injected Mapbox geocoding service.
   final MapboxGeocodingService? geocodingService;
+
 
   @override
   State<MapboxAddressAutocompleteField> createState() =>

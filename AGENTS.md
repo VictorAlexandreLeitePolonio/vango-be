@@ -23,3 +23,13 @@ All AI agents and assistants working in this repository **MUST ALWAYS** read and
 4. **Test Coverage:**
    - Execute `flutter test --coverage` to generate `coverage/lcov.info`.
    - Enforce a minimum threshold of **80% coverage** on business and domain logic layers.
+
+5. **Code Documentation & Comments Standard:**
+   - Write clear docstrings (`///` in Dart, JSDoc in TS) for every newly created or updated class, service, model, and public method explaining its purpose, parameters, and return types.
+   - Add inline comments (`//`) on non-trivial logic, mathematical computations (e.g., azimuth, bearing, Haversine distance), state management transitions, and UX choices to maintain high code comprehensibility for the team.
+   - All code comments and identifiers must remain in **English** (UI copy in **pt-BR**).
+
+6. **Continuous README & Documentation Synchronization:**
+   - Whenever new features, architectural components, dependencies, routes, or environment variables are added or modified, update the relevant `README.md` (e.g., `vango_app/README.md` and repository `README.md`) immediately.
+   - Document any new `.env` keys, permissions, prerequisites, and instructions on how to test and run the new capabilities.
+
