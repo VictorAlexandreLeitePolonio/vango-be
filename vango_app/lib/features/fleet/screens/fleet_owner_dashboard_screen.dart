@@ -321,6 +321,25 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
   }
 
   Widget _buildEnrolledStudentsTab() {
+    if (_enrolledStudents.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.people_outline_rounded, size: 48, color: AppColors.textMuted),
+              SizedBox(height: 12),
+              Text(
+                'Nenhum aluno matriculado na frota ainda.',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.all(20),
       itemCount: _enrolledStudents.length,
