@@ -120,7 +120,7 @@ class FleetService {
           'p_offset': 0,
         });
 
-        if (rows is List && rows.isNotEmpty) {
+        if (rows is List) {
           return rows.map((row) {
             return PendingJoinRequest(
               id: row['id'] as String? ?? '',
@@ -138,10 +138,12 @@ class FleetService {
           }).toList();
         }
       } catch (e) {
-        debugPrint('[FleetService] Erro ao buscar solicitações pendentes via RPC: $e');
+        debugPrint('[FleetService] ⚠️ Erro ao buscar solicitações pendentes via RPC: $e');
+        return [];
       }
     }
 
+    // Fallback for offline widget testing environments
     return List.from(_localPending);
   }
 
@@ -181,6 +183,34 @@ class FleetService {
   }
 
   Future<List<FleetMemberDriver>> getFleetDrivers(String fleetId) async {
+    final client = _client;
+    if (client != null && client.auth.currentUser != null) {
+      try {
+        final rows = await client
+            .from('fleet_memberships')
+            .select('user_id, profiles(full_name), fleet_membership_roles!inner(role)')
+            .eq('fleet_id', fleetId)
+            .eq('fleet_membership_roles.role', 'driver');
+
+        if (rows is List && rows.isNotEmpty) {
+          return rows.map((row) {
+            final profile = row['profiles'] as Map<String, dynamic>?;
+            return FleetMemberDriver(
+              id: row['user_id'] as String? ?? '',
+              name: profile?['full_name'] as String? ?? 'Motorista',
+              email: '',
+              status: 'Ativo',
+            );
+          }).toList();
+        }
+        return [];
+      } catch (e) {
+        debugPrint('[FleetService] Erro ao buscar motoristas: $e');
+        return [];
+      }
+    }
+
+    // Fallback for offline widget tests
     return const [
       FleetMemberDriver(
         id: '50000000-0000-0000-0000-000000000002',
@@ -201,33 +231,33 @@ class FleetService {
             .eq('fleet_id', fleetId)
             .eq('status', 'active');
 
-        if (rows.isNotEmpty) {
-          final list = <EnrolledStudentItem>[];
-          for (final row in rows) {
-            final st = row['students'] as Map<String, dynamic>?;
-            if (st != null) {
-              final street = st['street'] as String? ?? '';
-              final streetNum = st['street_number'] as String? ?? '';
-              final neigh = st['neighborhood'] as String? ?? '';
-              final city = st['city_name'] as String? ?? 'São Paulo';
-              list.add(
-                EnrolledStudentItem(
-                  id: st['id'] as String? ?? '',
-                  fullName: st['full_name'] as String? ?? '',
-                  address: '$street, $streetNum - $neigh, $city',
-                  latitude: (st['latitude'] as num?)?.toDouble() ?? -23.5615,
-                  longitude: (st['longitude'] as num?)?.toDouble() ?? -46.6698,
-                ),
-              );
-            }
+        final list = <EnrolledStudentItem>[];
+        for (final row in rows) {
+          final st = row['students'] as Map<String, dynamic>?;
+          if (st != null) {
+            final street = st['street'] as String? ?? '';
+            final streetNum = st['street_number'] as String? ?? '';
+            final neigh = st['neighborhood'] as String? ?? '';
+            final city = st['city_name'] as String? ?? 'São Paulo';
+            list.add(
+              EnrolledStudentItem(
+                id: st['id'] as String? ?? '',
+                fullName: st['full_name'] as String? ?? '',
+                address: '$street, $streetNum - $neigh, $city',
+                latitude: (st['latitude'] as num?)?.toDouble() ?? -23.5615,
+                longitude: (st['longitude'] as num?)?.toDouble() ?? -46.6698,
+              ),
+            );
           }
-          if (list.isNotEmpty) return list;
         }
+        return list;
       } catch (e) {
         debugPrint('[FleetService] Erro ao buscar alunos matriculados: $e');
+        return [];
       }
     }
 
+    // Fallback for offline widget testing
     return List.from(_localEnrolled);
   }
 
