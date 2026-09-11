@@ -186,6 +186,32 @@ values
     '51000000-0000-0000-0000-000000000002',
     '{}'::jsonb
   )
-on conflict (id) do nothing;
+insert into public.schools (
+  id, provider, external_id, institution_type, name, postal_code, street,
+  street_number, neighborhood, city_name, city_ibge_code, state_code,
+  latitude, longitude, status
+) values (
+  '60000000-0000-0000-0000-000000000001', 'inep', '35000001', 'school',
+  'Colégio Objetivo - Campus Paraíso', '04101-000', 'Rua Vergueiro', '1200',
+  'Paraíso', 'São Paulo', '3550308', 'SP', -23.5745, -46.6405, 'active'
+) on conflict (id) do nothing;
+
+insert into public.fleet_service_cities (fleet_id, city_ibge_code, city_name, state_code, created_by)
+values (
+  '51000000-0000-0000-0000-000000000001', '3550308', 'São Paulo', 'SP',
+  '50000000-0000-0000-0000-000000000001'
+) on conflict (fleet_id, city_ibge_code) do nothing;
+
+insert into public.fleet_service_schools (fleet_id, school_id, created_by)
+values (
+  '51000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001',
+  '50000000-0000-0000-0000-000000000001'
+) on conflict (fleet_id, school_id) do nothing;
+
+insert into public.vans (id, fleet_id, plate, model, public_name, capacity, status)
+values (
+  '61000000-0000-0000-0000-000000000001', '51000000-0000-0000-0000-000000000001',
+  'BRA2E19', 'Mercedes-Benz Sprinter 415', 'Van 01 - Zona Sul', 20, 'active'
+) on conflict (id) do nothing;
 
 commit;

@@ -4,11 +4,17 @@ import '../models/driver_trip.dart';
 import '../models/route_stop.dart';
 import 'mapbox_directions_service.dart';
 
+import '../../fleet/services/fleet_service.dart';
+
 class DriverRouteService {
-  DriverRouteService({MapboxDirectionsService? directionsService})
-      : _directionsService = directionsService ?? MapboxDirectionsService();
+  DriverRouteService({
+    MapboxDirectionsService? directionsService,
+    FleetService? fleetService,
+  })  : _directionsService = directionsService ?? MapboxDirectionsService(),
+        _fleetService = fleetService ?? FleetService();
 
   final MapboxDirectionsService _directionsService;
+  final FleetService _fleetService;
 
   DriverTrip? _currentTrip;
 
@@ -56,7 +62,54 @@ class DriverRouteService {
       );
 
   Future<DriverTrip> getTodayTrip() async {
-    _currentTrip ??= initialTrip;
+    if (_currentTrip != null) return _currentTrip!;
+
+    final enrolled = await _fleetService.getEnrolledStudents('51000000-0000-0000-0000-000000000001');
+    if (enrolled.isNotEmpty) {
+      final stops = <RouteStop>[];
+      int minute = 45;
+      for (int i = 0; i < enrolled.length; i++) {
+        final st = enrolled[i];
+        final timeStr = '06:${minute.toString().padLeft(2, '0')}';
+        minute += 15;
+        stops.add(
+          RouteStop(
+            id: st.id,
+            name: st.fullName,
+            address: st.address,
+            scheduledTime: timeStr,
+            latitude: st.latitude,
+            longitude: st.longitude,
+            type: StopType.pickup,
+          ),
+        );
+      }
+
+      // Escola de destino final
+      stops.add(
+        const RouteStop(
+          id: 'stop-03-colegio',
+          name: 'Colégio Objetivo / Campus Central',
+          address: 'Rua Vergueiro, 1200 - Paraíso',
+          scheduledTime: '07:30',
+          latitude: -23.5745,
+          longitude: -46.6405,
+          type: StopType.dropoff,
+          notes: 'Portão principal de vans escolares',
+        ),
+      );
+
+      _currentTrip = DriverTrip(
+        id: 'trip-today-001',
+        title: 'Rota Matutina — Colégio Objetivo',
+        vanPlate: 'BRA-2E19',
+        shift: 'Manhã',
+        stops: stops,
+      );
+      return _currentTrip!;
+    }
+
+    _currentTrip = initialTrip;
     return _currentTrip!;
   }
 

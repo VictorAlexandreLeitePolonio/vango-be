@@ -97,6 +97,16 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
         (selectedRole == null &&
             widget.accessContext.onboardingIntent == OnboardingIntent.driver);
 
+    final isFleetOwner = selectedRole == AccountRole.owner ||
+        (selectedRole == null &&
+            widget.accessContext.onboardingIntent == OnboardingIntent.fleetOwner);
+
+    final isGuardianOrStudent = selectedRole == AccountRole.guardian ||
+        selectedRole == AccountRole.student ||
+        (selectedRole == null &&
+            (widget.accessContext.onboardingIntent == OnboardingIntent.guardian ||
+                widget.accessContext.onboardingIntent == OnboardingIntent.adultStudent));
+
     return Scaffold(
       backgroundColor: AppColors.backgroundWhite,
       appBar: AppBar(title: const Text('VanGo')),
@@ -143,6 +153,142 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                           await Navigator.pushNamed(context, AppRoutes.driverRoute);
                           _loadDriverTrip();
                         },
+                      ),
+                    ],
+                    if (isFleetOwner) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(22),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBackground,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: AppColors.shadowLight,
+                              blurRadius: 16,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: AppColors.primaryOrange.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.admin_panel_settings_outlined,
+                                    color: AppColors.primaryOrangeDark,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Painel da Frota',
+                                        style: AppTextStyles.heading3.copyWith(fontSize: 18),
+                                      ),
+                                      Text(
+                                        'Aprove pedidos e veja sua equipe',
+                                        style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            VanGoButton(
+                              text: 'Acessar Gestão da Frota',
+                              onPressed: () {
+                                Navigator.pushNamed(context, AppRoutes.fleetDashboard);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (isGuardianOrStudent) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(22),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBackground,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: AppColors.shadowLight,
+                              blurRadius: 16,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: AppColors.inputBorder.withValues(alpha: 0.8),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryGold.withValues(alpha: 0.25),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.directions_bus_rounded,
+                                    color: AppColors.primaryOrangeDark,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Transporte Escolar',
+                                        style: AppTextStyles.heading3.copyWith(fontSize: 18),
+                                      ),
+                                      Text(
+                                        'Encontre vans ou gerencie alunos',
+                                        style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            VanGoButton(
+                              text: 'Buscar Vans Disponíveis',
+                              onPressed: () {
+                                Navigator.pushNamed(context, AppRoutes.vansMarketplace);
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            VanGoButton(
+                              text: 'Cadastrar Novo Aluno',
+                              isOutlined: true,
+                              onPressed: () {
+                                Navigator.pushNamed(context, AppRoutes.studentRegister);
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                     const SizedBox(height: 28),

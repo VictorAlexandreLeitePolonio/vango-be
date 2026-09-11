@@ -9,6 +9,9 @@ import '../../features/auth/services/auth_service.dart';
 import '../../features/auth/widgets/auth_gate.dart';
 
 import '../../features/driver/screens/driver_route_screen.dart';
+import '../../features/fleet/screens/fleet_owner_dashboard_screen.dart';
+import '../../features/student/screens/student_registration_screen.dart';
+import '../../features/student/screens/vans_marketplace_screen.dart';
 
 /// Named routes for the VanGo application.
 class AppRoutes {
@@ -21,6 +24,9 @@ class AppRoutes {
   static const String resetPassword = '/reset-password';
   static const String authenticatedHome = '/authenticated';
   static const String driverRoute = '/driver-route';
+  static const String studentRegister = '/student-register';
+  static const String vansMarketplace = '/vans-marketplace';
+  static const String fleetDashboard = '/fleet-dashboard';
 
   static Map<String, WidgetBuilder> routes({AuthService? authService}) => {
     welcome: (_) => const WelcomeScreen(),
@@ -32,5 +38,8 @@ class AppRoutes {
     authenticatedHome: (_) =>
         AuthGate(authService: authService ?? SupabaseAuthService()),
     driverRoute: (_) => const DriverRouteScreen(),
+    studentRegister: (_) => const StudentRegistrationScreen(),
+    vansMarketplace: (_) => const VansMarketplaceScreen(),
+    fleetDashboard: (_) => const FleetOwnerDashboardScreen(),
   };
 }
