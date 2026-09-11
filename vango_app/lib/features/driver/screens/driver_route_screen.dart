@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -6,6 +7,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/vango_button.dart';
 import '../models/driver_trip.dart';
 import '../models/route_stop.dart';
+import '../services/driver_location_service.dart';
 import '../services/driver_route_service.dart';
 import '../widgets/driver_active_trip_panel.dart';
 import '../widgets/mapbox_route_map.dart';
@@ -14,9 +16,11 @@ class DriverRouteScreen extends StatefulWidget {
   const DriverRouteScreen({
     super.key,
     this.routeService,
+    this.locationService,
   });
 
   final DriverRouteService? routeService;
+  final DriverLocationService? locationService;
 
   @override
   State<DriverRouteScreen> createState() => _DriverRouteScreenState();
@@ -24,15 +28,41 @@ class DriverRouteScreen extends StatefulWidget {
 
 class _DriverRouteScreenState extends State<DriverRouteScreen> {
   late final DriverRouteService _routeService;
+  late final DriverLocationService _locationService;
+  StreamSubscription<VanTelemetryUpdate>? _telemetrySub;
+
   DriverTrip? _trip;
   bool _isLoading = true;
   String? _errorMessage;
+
+  LatLng? _liveVanPos;
+  double _vanHeading = 0.0;
+  double _vanSpeedKmh = 0.0;
+  RouteStop? _approachingStop;
+  LocationTrackingMode _selectedTrackingMode = LocationTrackingMode.simulation;
 
   @override
   void initState() {
     super.initState();
     _routeService = widget.routeService ?? DriverRouteService();
+    _locationService = widget.locationService ?? DriverLocationService();
+    _telemetrySub = _locationService.telemetryStream.listen((telemetry) {
+      if (!mounted) return;
+      setState(() {
+        _liveVanPos = telemetry.position;
+        _vanHeading = telemetry.headingDegrees;
+        _vanSpeedKmh = telemetry.speedKmh;
+        _approachingStop = telemetry.approachingStop;
+      });
+    });
     _loadRoute();
+  }
+
+  @override
+  void dispose() {
+    _telemetrySub?.cancel();
+    _locationService.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRoute({bool forceRefresh = false}) async {
@@ -63,9 +93,20 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
     final updatedTrip = await _routeService.startTrip();
     if (!mounted) return;
     setState(() => _trip = updatedTrip);
+
+    if (updatedTrip.polylinePoints.isNotEmpty) {
+      _locationService.startTracking(
+        routePoints: updatedTrip.polylinePoints,
+        pendingStops: updatedTrip.pendingStops,
+        mode: _selectedTrackingMode,
+      );
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Percurso iniciado! Dirija com segurança.'),
+      SnackBar(
+        content: Text(_selectedTrackingMode == LocationTrackingMode.deviceGps
+            ? 'Percurso iniciado! GPS nativo ativado.'
+            : 'Percurso iniciado! Simulação virtual ativada.'),
         backgroundColor: AppColors.successGreen,
         behavior: SnackBarBehavior.floating,
       ),
@@ -78,7 +119,13 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
       StopStatus.boarded,
     );
     if (!mounted) return;
-    setState(() => _trip = updatedTrip);
+    setState(() {
+      _trip = updatedTrip;
+      if (_approachingStop?.id == stop.id) {
+        _approachingStop = null;
+      }
+    });
+    _locationService.updatePendingStops(updatedTrip.pendingStops);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Embarque de ${stop.name} confirmado!'),
@@ -94,7 +141,13 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
       StopStatus.absent,
     );
     if (!mounted) return;
-    setState(() => _trip = updatedTrip);
+    setState(() {
+      _trip = updatedTrip;
+      if (_approachingStop?.id == stop.id) {
+        _approachingStop = null;
+      }
+    });
+    _locationService.updatePendingStops(updatedTrip.pendingStops);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${stop.name} marcado como ausente.'),
@@ -105,9 +158,13 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
   }
 
   Future<void> _handleFinishTrip() async {
+    _locationService.stopTracking();
     final updatedTrip = await _routeService.finishTrip();
     if (!mounted) return;
-    setState(() => _trip = updatedTrip);
+    setState(() {
+      _trip = updatedTrip;
+      _approachingStop = null;
+    });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Viagem finalizada com sucesso no destino escolar!'),
@@ -175,14 +232,15 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
     final isCompleted = trip.status == TripStatus.completed;
 
     // Determine current van marker position
-    final currentVanPos = isTripActive && trip.nextPendingStop != null
-        ? LatLng(
-            trip.nextPendingStop!.latitude,
-            trip.nextPendingStop!.longitude,
-          )
-        : trip.stops.isNotEmpty
-            ? LatLng(trip.stops.first.latitude, trip.stops.first.longitude)
-            : null;
+    final currentVanPos = _liveVanPos ??
+        (isTripActive && trip.nextPendingStop != null
+            ? LatLng(
+                trip.nextPendingStop!.latitude,
+                trip.nextPendingStop!.longitude,
+              )
+            : trip.stops.isNotEmpty
+                ? LatLng(trip.stops.first.latitude, trip.stops.first.longitude)
+                : null);
 
     return Stack(
       children: [
@@ -197,6 +255,8 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                     stops: trip.stops,
                     polylinePoints: trip.polylinePoints,
                     currentVanPosition: currentVanPos,
+                    headingDegrees: _vanHeading,
+                    autoFollowVan: isTripActive,
                   ),
                   // Floating route metrics badge
                   Positioned(
@@ -280,6 +340,152 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                       ),
                     ),
                   ),
+
+                  // Floating GPS mode status pill
+                  Positioned(
+                    top: 68,
+                    left: 16,
+                    right: 16,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBackground.withValues(alpha: 0.95),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: AppColors.shadowLight,
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: _locationService.isTracking
+                                ? AppColors.successGreen
+                                : AppColors.inputBorder,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _locationService.isTracking
+                                  ? Icons.satellite_alt_rounded
+                                  : Icons.gps_fixed_rounded,
+                              size: 16,
+                              color: _locationService.isTracking
+                                  ? AppColors.successGreen
+                                  : AppColors.textMuted,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _locationService.isTracking
+                                  ? '${_selectedTrackingMode == LocationTrackingMode.deviceGps ? 'GPS Ativo' : 'Simulação'} • ${_vanSpeedKmh.toStringAsFixed(0)} km/h'
+                                  : 'Modo: ${_selectedTrackingMode == LocationTrackingMode.deviceGps ? 'GPS Real' : 'Simulação'}',
+                              style: AppTextStyles.caption.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: _locationService.isTracking
+                                    ? AppColors.successGreen
+                                    : AppColors.textDark,
+                              ),
+                            ),
+                            if (!_locationService.isTracking) ...[
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedTrackingMode =
+                                        _selectedTrackingMode == LocationTrackingMode.simulation
+                                            ? LocationTrackingMode.deviceGps
+                                            : LocationTrackingMode.simulation;
+                                  });
+                                },
+                                child: Text(
+                                  'Alternar',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.primaryOrangeDark,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Proximity alert banner
+                  if (_approachingStop != null)
+                    Positioned(
+                      bottom: 12,
+                      left: 16,
+                      right: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryOrangeDark,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: AppColors.shadowMedium,
+                              blurRadius: 14,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.near_me_rounded, color: Colors.white, size: 24),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    'Próximo do embarque!',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    _approachingStop!.name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: AppColors.primaryOrangeDark,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                              ),
+                              onPressed: () => _handleBoardStop(_approachingStop!),
+                              child: const Text(
+                                'Embarcar',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

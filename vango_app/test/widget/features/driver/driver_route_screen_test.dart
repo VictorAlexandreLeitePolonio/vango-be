@@ -60,4 +60,38 @@ void main() {
     expect(find.text('Confirmar Embarque'), findsOneWidget);
     expect(find.text('Ausente'), findsOneWidget);
   });
+
+  testWidgets('displays GPS status pill and allows toggling between Simulation and GPS Real', (tester) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final routeService = DriverRouteService(
+      directionsService: StubDirectionsService(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DriverRouteScreen(routeService: routeService),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify initial mode pill
+    expect(find.text('Modo: Simulação'), findsOneWidget);
+    expect(find.text('Alternar'), findsOneWidget);
+
+    // Toggle to GPS Real
+    await tester.tap(find.text('Alternar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Modo: GPS Real'), findsOneWidget);
+
+    // Toggle back to Simulação
+    await tester.tap(find.text('Alternar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Modo: Simulação'), findsOneWidget);
+  });
 }

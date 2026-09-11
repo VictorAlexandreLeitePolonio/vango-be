@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -13,12 +14,16 @@ class MapboxRouteMap extends StatefulWidget {
     required this.stops,
     required this.polylinePoints,
     this.currentVanPosition,
+    this.headingDegrees = 0.0,
+    this.autoFollowVan = true,
     this.onStopTapped,
   });
 
   final List<RouteStop> stops;
   final List<LatLng> polylinePoints;
   final LatLng? currentVanPosition;
+  final double headingDegrees;
+  final bool autoFollowVan;
   final ValueChanged<RouteStop>? onStopTapped;
 
   @override
@@ -39,6 +44,16 @@ class _MapboxRouteMapState extends State<MapboxRouteMap> {
   void dispose() {
     _mapController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(MapboxRouteMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.autoFollowVan &&
+        widget.currentVanPosition != null &&
+        widget.currentVanPosition != oldWidget.currentVanPosition) {
+      _mapController.move(widget.currentVanPosition!, _mapController.camera.zoom);
+    }
   }
 
   void _fitBounds() {
@@ -144,6 +159,19 @@ class _MapboxRouteMapState extends State<MapboxRouteMap> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (widget.currentVanPosition != null) ...[
+                _buildControlButton(
+                  icon: Icons.my_location_rounded,
+                  tooltip: 'Centralizar na Van',
+                  onPressed: () {
+                    _mapController.move(
+                      widget.currentVanPosition!,
+                      15.5,
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
               _buildControlButton(
                 icon: Icons.crop_free_rounded,
                 tooltip: 'Enquadrar Rota',
@@ -260,24 +288,49 @@ class _MapboxRouteMapState extends State<MapboxRouteMap> {
   }
 
   Widget _buildVanMarker() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.primaryGold,
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.primaryNavy, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: AppColors.shadowMedium,
-            blurRadius: 8,
-            offset: Offset(0, 2),
+    final angleRad = widget.headingDegrees * (math.pi / 180.0);
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Radar glow indicating active GPS/simulation
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.primaryGold.withValues(alpha: 0.25),
+            border: Border.all(
+              color: AppColors.primaryOrange.withValues(alpha: 0.5),
+              width: 1.5,
+            ),
           ),
-        ],
-      ),
-      child: const Icon(
-        Icons.directions_bus_rounded,
-        color: AppColors.primaryNavy,
-        size: 22,
-      ),
+        ),
+        // Van marker with direction rotation
+        Transform.rotate(
+          angle: angleRad,
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.primaryGold,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primaryNavy, width: 2),
+              boxShadow: const [
+                BoxShadow(
+                  color: AppColors.shadowMedium,
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.navigation_rounded,
+              color: AppColors.primaryNavy,
+              size: 20,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

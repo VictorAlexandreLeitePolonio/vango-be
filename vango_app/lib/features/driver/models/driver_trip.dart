@@ -45,6 +45,9 @@ class DriverTrip {
     return null;
   }
 
+  List<RouteStop> get pendingStops =>
+      stops.where((s) => !s.isCompleted).toList();
+
   bool get isAllStopsCompleted => stops.every((s) => s.isCompleted);
 
   String get formattedDistance {
