@@ -77,6 +77,19 @@ insert into auth.users (
     '{}'::jsonb,
     now(),
     now()
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    '50000000-0000-0000-0000-000000000006',
+    'authenticated',
+    'authenticated',
+    'carlos.motorista@vango.com.br',
+    extensions.crypt('Senha@123', extensions.gen_salt('bf')),
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"full_name":"Carlos Motorista"}'::jsonb,
+    now(),
+    now()
   )
 on conflict (id) do nothing;
 
@@ -85,7 +98,7 @@ set confirmation_token = '',
     recovery_token = '',
     email_change_token_new = '',
     email_change = ''
-where email like 'seed-%@example.test';
+where email like 'seed-%@example.test' or email = 'carlos.motorista@vango.com.br';
 
 update public.profiles
 set full_name = seed_profile.full_name
@@ -95,7 +108,8 @@ from (
     ('50000000-0000-0000-0000-000000000002'::uuid, 'Seed Driver'),
     ('50000000-0000-0000-0000-000000000003'::uuid, 'Seed Guardian'),
     ('50000000-0000-0000-0000-000000000004'::uuid, 'Seed Owner B'),
-    ('50000000-0000-0000-0000-000000000005'::uuid, 'Seed Student')
+    ('50000000-0000-0000-0000-000000000005'::uuid, 'Seed Student'),
+    ('50000000-0000-0000-0000-000000000006'::uuid, 'Carlos Motorista')
 ) as seed_profile(id, full_name)
 where profiles.id = seed_profile.id;
 
@@ -145,6 +159,11 @@ values
     '52000000-0000-0000-0000-000000000005',
     '51000000-0000-0000-0000-000000000002',
     '50000000-0000-0000-0000-000000000004'
+  ),
+  (
+    '52000000-0000-0000-0000-000000000006',
+    '51000000-0000-0000-0000-000000000001',
+    '50000000-0000-0000-0000-000000000006'
   )
 on conflict (id) do nothing;
 
@@ -155,7 +174,8 @@ values
   ('52000000-0000-0000-0000-000000000002', 'guardian'),
   ('52000000-0000-0000-0000-000000000003', 'guardian'),
   ('52000000-0000-0000-0000-000000000004', 'student'),
-  ('52000000-0000-0000-0000-000000000005', 'owner')
+  ('52000000-0000-0000-0000-000000000005', 'owner'),
+  ('52000000-0000-0000-0000-000000000006', 'driver')
 on conflict (membership_id, role) do nothing;
 
 insert into public.audit_events (
@@ -185,7 +205,8 @@ values
     'fleet',
     '51000000-0000-0000-0000-000000000002',
     '{}'::jsonb
-  )
+  );
+
 insert into public.schools (
   id, provider, external_id, institution_type, name, postal_code, street,
   street_number, neighborhood, city_name, city_ibge_code, state_code,
