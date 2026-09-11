@@ -385,7 +385,7 @@ client.auth.signUp(
   email: email.trim(),
   password: password,
   data: {'full_name': fullName.trim()},
-  emailRedirectTo: 'com.vango.vango_app://auth-callback/',
+  emailRedirectTo: 'com.vango.vangoapp://auth-callback/',
 );
 
 client
@@ -395,7 +395,7 @@ client
 
 client.auth.resetPasswordForEmail(
   email.trim(),
-  redirectTo: 'com.vango.vango_app://auth-callback/',
+  redirectTo: 'com.vango.vangoapp://auth-callback/',
 );
 
 client.auth.updateUser(UserAttributes(password: password));
@@ -613,7 +613,7 @@ Expected: PASS.
 
 **Interfaces:**
 - Forgot password calls `AuthService.sendPasswordReset` and retains the existing sent state.
-- The shared mobile recovery callback is `com.vango.vango_app://auth-callback/`.
+- The shared mobile recovery callback is `com.vango.vangoapp://auth-callback/`.
 - Reset screen calls `AuthService.updatePassword` and returns to the authenticated gate on success.
 
 - [x] **Step 1: Write failing reset-flow tests**
@@ -668,7 +668,7 @@ Add two password fields using the existing `VanGoTextField`, retain the six-char
 
 - [x] **Step 5: Connect recovery state and register the mobile callback**
 
-Handle `passwordRecovery` in `AuthGate` and render `ResetPasswordScreen` until the password update succeeds. Add the exact scheme `com.vango.vango_app` to iOS `CFBundleURLTypes`. Add an Android `VIEW` intent filter with `DEFAULT`, `BROWSABLE`, scheme `com.vango.vango_app`, and host `auth-callback`. Add the exact callback URL to local `auth.additional_redirect_urls`; configure the hosted project's Auth redirect allow-list separately without committing credentials.
+Handle `passwordRecovery` in `AuthGate` and render `ResetPasswordScreen` until the password update succeeds. Add the exact scheme `com.vango.vangoapp` to iOS `CFBundleURLTypes`. Add an Android `VIEW` intent filter with `DEFAULT`, `BROWSABLE`, scheme `com.vango.vangoapp`, and host `auth-callback`. Add the exact callback URL to local `auth.additional_redirect_urls`; configure the hosted project's Auth redirect allow-list separately without committing credentials.
 
 - [x] **Step 6: Run the focused tests and verify GREEN**
 

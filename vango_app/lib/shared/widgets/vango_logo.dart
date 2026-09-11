@@ -51,6 +51,7 @@ class VanGoLogo extends StatelessWidget {
         AppAssets.logoVango,
         height: _svgHeight,
         fit: BoxFit.contain,
+        semanticsLabel: 'Logo VanGo',
       );
     }
 
@@ -59,6 +60,7 @@ class VanGoLogo extends StatelessWidget {
       AppAssets.logoVango,
       height: _svgHeight,
       fit: BoxFit.contain,
+      semanticsLabel: 'Logo VanGo',
       placeholderBuilder: (_) =>
           _FallbackLogo(fontSize: _fontSize, color: color),
     );

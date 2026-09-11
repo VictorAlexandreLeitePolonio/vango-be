@@ -37,7 +37,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     _authService = widget.authService ?? SupabaseAuthService();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 220),
     );
     _fadeAnimation = CurvedAnimation(
       parent: _animController,
@@ -122,98 +122,105 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
           opacity: _fadeAnimation,
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 24),
 
-                  // ── Logo ──────────────────────────────────
-                  const VanGoLogo(size: VanGoLogoSize.medium),
-                  const SizedBox(height: 40),
+                      // ── Logo ──────────────────────────────────
+                      const VanGoLogo(size: VanGoLogoSize.medium),
+                      const SizedBox(height: 40),
 
-                  // ── Icon ──────────────────────────────────
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      gradient: AppColors.primaryGradient,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryOrange.withValues(alpha: 0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
+                      // ── Icon ──────────────────────────────────
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryOrange.withValues(
+                                alpha: 0.2,
+                              ),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          _emailSent
+                              ? Icons.mark_email_read_outlined
+                              : Icons.lock_reset_rounded,
+                          color: AppColors.textDark,
+                          size: 34,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // ── Title ─────────────────────────────────
+                      Text(
+                        _emailSent ? 'E-mail enviado!' : 'Recuperar senha',
+                        style: AppTextStyles.heading2,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _emailSent
+                            ? 'Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.'
+                            : 'Informe seu e-mail para receber o link de recuperação',
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.subtitle,
+                      ),
+                      const SizedBox(height: 36),
+
+                      if (!_emailSent) ...[
+                        // ── Email field ─────────────────────────
+                        VanGoTextField(
+                          controller: _emailController,
+                          label: 'E-mail',
+                          hint: 'seu@email.com',
+                          prefixIcon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.email],
+                          validator: _validateEmail,
+                          onFieldSubmitted: (_) => _handleSendLink(),
+                        ),
+                        const SizedBox(height: 32),
+
+                        // ── Submit button ───────────────────────
+                        VanGoButton(
+                          text: 'Enviar link',
+                          isLoading: _isLoading,
+                          onPressed: _handleSendLink,
+                        ),
+                      ] else ...[
+                        // ── Back to Login button ────────────────
+                        VanGoButton(
+                          text: 'Voltar ao Login',
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () {
+                            setState(() => _emailSent = false);
+                            _emailController.clear();
+                          },
+                          child: Text(
+                            'Enviar novamente',
+                            style: AppTextStyles.link,
+                          ),
                         ),
                       ],
-                    ),
-                    child: Icon(
-                      _emailSent
-                          ? Icons.mark_email_read_outlined
-                          : Icons.lock_reset_rounded,
-                      color: AppColors.textLight,
-                      size: 34,
-                    ),
+                      const SizedBox(height: 24),
+                    ],
                   ),
-                  const SizedBox(height: 28),
-
-                  // ── Title ─────────────────────────────────
-                  Text(
-                    _emailSent ? 'E-mail enviado!' : 'Recuperar senha',
-                    style: AppTextStyles.heading2,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _emailSent
-                        ? 'Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.'
-                        : 'Informe seu e-mail para receber o link de recuperação',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.subtitle,
-                  ),
-                  const SizedBox(height: 36),
-
-                  if (!_emailSent) ...[
-                    // ── Email field ─────────────────────────
-                    VanGoTextField(
-                      controller: _emailController,
-                      label: 'E-mail',
-                      hint: 'seu@email.com',
-                      prefixIcon: Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.done,
-                      autofillHints: const [AutofillHints.email],
-                      validator: _validateEmail,
-                      onFieldSubmitted: (_) => _handleSendLink(),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // ── Submit button ───────────────────────
-                    VanGoButton(
-                      text: 'Enviar link',
-                      isLoading: _isLoading,
-                      onPressed: _handleSendLink,
-                    ),
-                  ] else ...[
-                    // ── Back to Login button ────────────────
-                    VanGoButton(
-                      text: 'Voltar ao Login',
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: () {
-                        setState(() => _emailSent = false);
-                        _emailController.clear();
-                      },
-                      child: Text(
-                        'Enviar novamente',
-                        style: AppTextStyles.link,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                ],
+                ),
               ),
             ),
           ),

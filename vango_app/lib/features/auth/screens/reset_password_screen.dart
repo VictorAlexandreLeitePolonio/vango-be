@@ -33,7 +33,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 220),
     );
     _fadeAnimation = CurvedAnimation(
       parent: _animController,
@@ -112,51 +112,56 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
           opacity: _fadeAnimation,
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 24),
-                  const VanGoLogo(size: VanGoLogoSize.medium),
-                  const SizedBox(height: 40),
-                  Text('Redefinir senha', style: AppTextStyles.heading2),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Crie uma nova senha para sua conta',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.subtitle,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 24),
+                      const VanGoLogo(size: VanGoLogoSize.medium),
+                      const SizedBox(height: 40),
+                      Text('Redefinir senha', style: AppTextStyles.heading2),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Crie uma nova senha para sua conta',
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.subtitle,
+                      ),
+                      const SizedBox(height: 36),
+                      VanGoTextField(
+                        controller: _passwordController,
+                        label: 'Nova senha',
+                        hint: '••••••',
+                        prefixIcon: Icons.lock_outline_rounded,
+                        isPassword: true,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.newPassword],
+                        validator: _validatePassword,
+                      ),
+                      const SizedBox(height: 18),
+                      VanGoTextField(
+                        controller: _confirmPasswordController,
+                        label: 'Confirmar senha',
+                        hint: '••••••',
+                        prefixIcon: Icons.lock_outline_rounded,
+                        isPassword: true,
+                        textInputAction: TextInputAction.done,
+                        validator: _validateConfirmPassword,
+                        onFieldSubmitted: (_) => _handleUpdatePassword(),
+                      ),
+                      const SizedBox(height: 32),
+                      VanGoButton(
+                        text: 'Atualizar senha',
+                        isLoading: _isLoading,
+                        onPressed: _handleUpdatePassword,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ),
-                  const SizedBox(height: 36),
-                  VanGoTextField(
-                    controller: _passwordController,
-                    label: 'Nova senha',
-                    hint: '••••••',
-                    prefixIcon: Icons.lock_outline_rounded,
-                    isPassword: true,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.newPassword],
-                    validator: _validatePassword,
-                  ),
-                  const SizedBox(height: 18),
-                  VanGoTextField(
-                    controller: _confirmPasswordController,
-                    label: 'Confirmar senha',
-                    hint: '••••••',
-                    prefixIcon: Icons.lock_outline_rounded,
-                    isPassword: true,
-                    textInputAction: TextInputAction.done,
-                    validator: _validateConfirmPassword,
-                    onFieldSubmitted: (_) => _handleUpdatePassword(),
-                  ),
-                  const SizedBox(height: 32),
-                  VanGoButton(
-                    text: 'Atualizar senha',
-                    isLoading: _isLoading,
-                    onPressed: _handleUpdatePassword,
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                ),
               ),
             ),
           ),

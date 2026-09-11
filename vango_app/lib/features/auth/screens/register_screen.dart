@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../models/onboarding_intent.dart';
 import '../services/auth_error_mapper.dart';
 import '../services/auth_service.dart';
 import '../../../shared/widgets/vango_button.dart';
@@ -29,6 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  OnboardingIntent? _onboardingIntent;
   bool _isLoading = false;
   late final AuthService _authService;
 
@@ -41,7 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     _authService = widget.authService ?? SupabaseAuthService();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 220),
     );
     _fadeAnimation = CurvedAnimation(
       parent: _animController,
@@ -62,6 +64,8 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
+    final onboardingIntent = _onboardingIntent;
+    if (onboardingIntent == null) return;
 
     setState(() => _isLoading = true);
 
@@ -70,6 +74,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         fullName: _nameController.text,
         email: _emailController.text,
         password: _passwordController.text,
+        onboardingIntent: onboardingIntent,
       );
 
       if (!mounted) return;
@@ -165,109 +170,165 @@ class _RegisterScreenState extends State<RegisterScreen>
           opacity: _fadeAnimation,
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 8),
-
-                  // ── Logo ──────────────────────────────────
-                  const VanGoLogo(size: VanGoLogoSize.medium),
-                  const SizedBox(height: 28),
-
-                  // ── Title ─────────────────────────────────
-                  Text('Crie sua conta', style: AppTextStyles.heading2),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Comece a usar o VanGo agora',
-                    style: AppTextStyles.subtitle,
-                  ),
-                  const SizedBox(height: 32),
-
-                  // ── Name field ────────────────────────────
-                  VanGoTextField(
-                    controller: _nameController,
-                    label: 'Nome completo',
-                    hint: 'Seu nome',
-                    prefixIcon: Icons.person_outline_rounded,
-                    keyboardType: TextInputType.name,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.name],
-                    validator: _validateName,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Email field ───────────────────────────
-                  VanGoTextField(
-                    controller: _emailController,
-                    label: 'E-mail',
-                    hint: 'seu@email.com',
-                    prefixIcon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.email],
-                    validator: _validateEmail,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Password field ────────────────────────
-                  VanGoTextField(
-                    controller: _passwordController,
-                    label: 'Senha',
-                    hint: '••••••',
-                    prefixIcon: Icons.lock_outline_rounded,
-                    isPassword: true,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.newPassword],
-                    validator: _validatePassword,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Confirm password field ────────────────
-                  VanGoTextField(
-                    controller: _confirmPasswordController,
-                    label: 'Confirmar senha',
-                    hint: '••••••',
-                    prefixIcon: Icons.lock_outline_rounded,
-                    isPassword: true,
-                    textInputAction: TextInputAction.done,
-                    validator: _validateConfirmPassword,
-                    onFieldSubmitted: (_) => _handleRegister(),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // ── Submit button ─────────────────────────
-                  VanGoButton(
-                    text: 'Criar Conta',
-                    isLoading: _isLoading,
-                    onPressed: _handleRegister,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Login link ────────────────────────────
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      const SizedBox(height: 8),
+
+                      // ── Logo ──────────────────────────────────
+                      const VanGoLogo(size: VanGoLogoSize.medium),
+                      const SizedBox(height: 28),
+
+                      // ── Title ─────────────────────────────────
+                      Text('Crie sua conta', style: AppTextStyles.heading2),
+                      const SizedBox(height: 8),
                       Text(
-                        'Já tem conta? ',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.textMuted,
-                        ),
+                        'Comece a usar o VanGo agora',
+                        style: AppTextStyles.subtitle,
                       ),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pushReplacementNamed(
-                            context,
-                            AppRoutes.login,
+                      const SizedBox(height: 32),
+
+                      // ── Name field ────────────────────────────
+                      VanGoTextField(
+                        controller: _nameController,
+                        label: 'Nome completo',
+                        hint: 'Seu nome',
+                        prefixIcon: Icons.person_outline_rounded,
+                        keyboardType: TextInputType.name,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.name],
+                        validator: _validateName,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Email field ───────────────────────────
+                      VanGoTextField(
+                        controller: _emailController,
+                        label: 'E-mail',
+                        hint: 'seu@email.com',
+                        prefixIcon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.email],
+                        validator: _validateEmail,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Password field ────────────────────────
+                      VanGoTextField(
+                        controller: _passwordController,
+                        label: 'Senha',
+                        hint: '••••••',
+                        prefixIcon: Icons.lock_outline_rounded,
+                        isPassword: true,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.newPassword],
+                        validator: _validatePassword,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Confirm password field ────────────────
+                      VanGoTextField(
+                        controller: _confirmPasswordController,
+                        label: 'Confirmar senha',
+                        hint: '••••••',
+                        prefixIcon: Icons.lock_outline_rounded,
+                        isPassword: true,
+                        textInputAction: TextInputAction.done,
+                        validator: _validateConfirmPassword,
+                        onFieldSubmitted: (_) => _handleRegister(),
+                      ),
+                      const SizedBox(height: 24),
+
+                      FormField<OnboardingIntent>(
+                        validator: (value) => value == null
+                            ? 'Escolha como você usará o VanGo'
+                            : null,
+                        builder: (field) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Como você usará o VanGo?',
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              RadioGroup<OnboardingIntent>(
+                                groupValue: field.value,
+                                onChanged: (value) {
+                                  field.didChange(value);
+                                  setState(() => _onboardingIntent = value);
+                                },
+                                child: Column(
+                                  children: OnboardingIntent.values.map((
+                                    intent,
+                                  ) {
+                                    return RadioListTile<OnboardingIntent>(
+                                      value: intent,
+                                      title: Text(intent.label),
+                                      activeColor: AppColors.primaryOrangeDark,
+                                      contentPadding: EdgeInsets.zero,
+                                      dense: true,
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                              if (field.hasError)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 12),
+                                  child: Text(
+                                    field.errorText!,
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.errorRed,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           );
                         },
-                        child: Text('Entrar', style: AppTextStyles.link),
                       ),
+                      const SizedBox(height: 24),
+
+                      // ── Submit button ─────────────────────────
+                      VanGoButton(
+                        text: 'Criar Conta',
+                        isLoading: _isLoading,
+                        onPressed: _handleRegister,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // ── Login link ────────────────────────────
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Já tem conta? ',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pushReplacementNamed(
+                                context,
+                                AppRoutes.login,
+                              );
+                            },
+                            child: Text('Entrar', style: AppTextStyles.link),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                ],
+                ),
               ),
             ),
           ),

@@ -26,6 +26,8 @@ supabase start
 supabase status -o env
 ```
 
+Local Auth emails are captured by the Mailpit instance started by Supabase.
+
 Then run the app from this directory with the local define file:
 
 ```bash
@@ -34,7 +36,21 @@ flutter run --dart-define-from-file=.env
 ```
 
 The Android and iOS clients register the same callback scheme used by
-Supabase Auth: `com.vango.vango_app://auth-callback/`.
+Supabase Auth: `com.vango.vangoapp://auth-callback/`.
+
+## Onboarding and access
+
+Registration sends `full_name` and `onboarding_intent` as Auth metadata. The
+supported intent values are `fleet_owner`, `driver`, `guardian`, and
+`adult_student`.
+
+The onboarding intent guides account setup only and never grants
+authorization. Authenticated navigation reads `public.get_my_access_context()`
+and renders from its effective roles. One account may have multiple roles
+across fleets.
+
+Minor students do not own Auth accounts. Their primary guardian creates them
+through the existing backend contract.
 
 ## Checks
 

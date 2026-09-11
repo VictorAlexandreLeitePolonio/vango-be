@@ -19,7 +19,7 @@ class AppTextStyles {
   );
 
   static TextStyle get heading2 => GoogleFonts.poppins(
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: FontWeight.bold,
     color: AppColors.textDark,
     height: 1.3,
@@ -60,14 +60,14 @@ class AppTextStyles {
   static TextStyle get buttonLarge => GoogleFonts.poppins(
     fontSize: 16,
     fontWeight: FontWeight.w600,
-    color: AppColors.textLight,
+    color: AppColors.textDark,
     height: 1.2,
   );
 
   static TextStyle get buttonMedium => GoogleFonts.poppins(
     fontSize: 14,
     fontWeight: FontWeight.w600,
-    color: AppColors.textLight,
+    color: AppColors.textDark,
     height: 1.2,
   );
 
@@ -83,7 +83,7 @@ class AppTextStyles {
   static TextStyle get link => GoogleFonts.poppins(
     fontSize: 14,
     fontWeight: FontWeight.w600,
-    color: AppColors.primaryOrange,
+    color: AppColors.primaryOrangeDark,
     height: 1.4,
   );
 

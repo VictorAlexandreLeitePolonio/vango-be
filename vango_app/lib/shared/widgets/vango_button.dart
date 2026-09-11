@@ -81,7 +81,7 @@ class _VanGoButtonState extends State<VanGoButton>
         onTapCancel: _onTapCancel,
         child: Container(
           width: double.infinity,
-          height: 54,
+          height: 56,
           decoration: BoxDecoration(
             gradient: widget.onPressed != null && !widget.isLoading
                 ? AppColors.primaryGradient
@@ -89,7 +89,7 @@ class _VanGoButtonState extends State<VanGoButton>
             color: widget.onPressed == null || widget.isLoading
                 ? AppColors.inputBorder
                 : null,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
             boxShadow: widget.onPressed != null && !widget.isLoading
                 ? [
                     BoxShadow(
@@ -104,7 +104,7 @@ class _VanGoButtonState extends State<VanGoButton>
             color: Colors.transparent,
             child: InkWell(
               onTap: widget.isLoading ? null : widget.onPressed,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(18),
               child: Center(
                 child: widget.isLoading
                     ? const SizedBox(
@@ -113,7 +113,7 @@ class _VanGoButtonState extends State<VanGoButton>
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.textLight,
+                            AppColors.textDark,
                           ),
                         ),
                       )
@@ -123,7 +123,7 @@ class _VanGoButtonState extends State<VanGoButton>
                           if (widget.icon != null) ...[
                             Icon(
                               widget.icon,
-                              color: AppColors.textLight,
+                              color: AppColors.textDark,
                               size: 20,
                             ),
                             const SizedBox(width: 8),
@@ -148,16 +148,16 @@ class _VanGoButtonState extends State<VanGoButton>
         onTapCancel: _onTapCancel,
         child: Container(
           width: double.infinity,
-          height: 54,
+          height: 56,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.primaryOrange, width: 1.5),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.primaryOrangeDark, width: 1.5),
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: widget.isLoading ? null : widget.onPressed,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(18),
               child: Center(
                 child: widget.isLoading
                     ? SizedBox(
@@ -166,7 +166,7 @@ class _VanGoButtonState extends State<VanGoButton>
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
                           valueColor: const AlwaysStoppedAnimation<Color>(
-                            AppColors.primaryOrange,
+                            AppColors.primaryOrangeDark,
                           ),
                         ),
                       )
@@ -176,7 +176,7 @@ class _VanGoButtonState extends State<VanGoButton>
                           if (widget.icon != null) ...[
                             Icon(
                               widget.icon,
-                              color: AppColors.primaryOrange,
+                              color: AppColors.primaryOrangeDark,
                               size: 20,
                             ),
                             const SizedBox(width: 8),
@@ -184,7 +184,7 @@ class _VanGoButtonState extends State<VanGoButton>
                           Text(
                             widget.text,
                             style: AppTextStyles.buttonLarge.copyWith(
-                              color: AppColors.primaryOrange,
+                              color: AppColors.primaryOrangeDark,
                             ),
                           ),
                         ],

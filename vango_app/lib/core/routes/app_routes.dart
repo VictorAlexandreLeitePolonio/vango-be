@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../features/auth/screens/authenticated_home_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/auth/screens/reset_password_screen.dart';
 import '../../features/auth/screens/welcome_screen.dart';
 import '../../features/auth/services/auth_service.dart';
+import '../../features/auth/widgets/auth_gate.dart';
 
 /// Named routes for the VanGo application.
 class AppRoutes {
@@ -26,8 +26,7 @@ class AppRoutes {
     forgotPassword: (_) => ForgotPasswordScreen(authService: authService),
     resetPassword: (_) =>
         ResetPasswordScreen(authService: authService ?? SupabaseAuthService()),
-    authenticatedHome: (_) => AuthenticatedHomeScreen(
-      authService: authService ?? SupabaseAuthService(),
-    ),
+    authenticatedHome: (_) =>
+        AuthGate(authService: authService ?? SupabaseAuthService()),
   };
 }
