@@ -80,6 +80,13 @@ insert into auth.users (
   )
 on conflict (id) do nothing;
 
+update auth.users
+set confirmation_token = '',
+    recovery_token = '',
+    email_change_token_new = '',
+    email_change = ''
+where email like 'seed-%@example.test';
+
 update public.profiles
 set full_name = seed_profile.full_name
 from (
