@@ -8,6 +8,8 @@ import '../../features/auth/screens/welcome_screen.dart';
 import '../../features/auth/services/auth_service.dart';
 import '../../features/auth/widgets/auth_gate.dart';
 
+import '../../features/driver/screens/driver_route_screen.dart';
+
 /// Named routes for the VanGo application.
 class AppRoutes {
   AppRoutes._();
@@ -18,6 +20,7 @@ class AppRoutes {
   static const String forgotPassword = '/forgot-password';
   static const String resetPassword = '/reset-password';
   static const String authenticatedHome = '/authenticated';
+  static const String driverRoute = '/driver-route';
 
   static Map<String, WidgetBuilder> routes({AuthService? authService}) => {
     welcome: (_) => const WelcomeScreen(),
@@ -28,5 +31,6 @@ class AppRoutes {
         ResetPasswordScreen(authService: authService ?? SupabaseAuthService()),
     authenticatedHome: (_) =>
         AuthGate(authService: authService ?? SupabaseAuthService()),
+    driverRoute: (_) => const DriverRouteScreen(),
   };
 }

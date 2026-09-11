@@ -1,0 +1,310 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+
+import '../../../core/config/mapbox_config.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+import '../models/route_stop.dart';
+
+class MapboxRouteMap extends StatefulWidget {
+  const MapboxRouteMap({
+    super.key,
+    required this.stops,
+    required this.polylinePoints,
+    this.currentVanPosition,
+    this.onStopTapped,
+  });
+
+  final List<RouteStop> stops;
+  final List<LatLng> polylinePoints;
+  final LatLng? currentVanPosition;
+  final ValueChanged<RouteStop>? onStopTapped;
+
+  @override
+  State<MapboxRouteMap> createState() => _MapboxRouteMapState();
+}
+
+class _MapboxRouteMapState extends State<MapboxRouteMap> {
+  late final MapController _mapController;
+  final _mapboxConfig = const MapboxConfig.fromEnvironment();
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  void _fitBounds() {
+    if (widget.stops.isEmpty) return;
+
+    final points = widget.stops.map((s) => LatLng(s.latitude, s.longitude)).toList();
+    if (widget.polylinePoints.isNotEmpty) {
+      points.addAll(widget.polylinePoints);
+    }
+
+    final bounds = LatLngBounds.fromPoints(points);
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.all(48),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final initialCenter = widget.stops.isNotEmpty
+        ? LatLng(widget.stops.first.latitude, widget.stops.first.longitude)
+        : const LatLng(-23.565, -46.655);
+
+    // High resolution Mapbox streets or fallback
+    final tileUrl = _mapboxConfig.hasToken
+        ? _mapboxConfig.streetsTileUrl
+        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: initialCenter,
+            initialZoom: 13.8,
+            minZoom: 10.0,
+            maxZoom: 18.0,
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.all,
+            ),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: tileUrl,
+              userAgentPackageName: 'com.vango.vangoapp',
+              maxZoom: 19,
+            ),
+            if (widget.polylinePoints.isNotEmpty) ...[
+              // Glow outline
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: widget.polylinePoints,
+                    strokeWidth: 8.0,
+                    color: AppColors.primaryOrange.withValues(alpha: 0.35),
+                  ),
+                ],
+              ),
+              // Main route polyline
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: widget.polylinePoints,
+                    strokeWidth: 4.5,
+                    color: AppColors.primaryOrangeDark,
+                  ),
+                ],
+              ),
+            ],
+            MarkerLayer(
+              markers: [
+                ...widget.stops.asMap().entries.map((entry) {
+                  final index = entry.key + 1;
+                  final stop = entry.value;
+                  return Marker(
+                    point: LatLng(stop.latitude, stop.longitude),
+                    width: 44,
+                    height: 52,
+                    child: GestureDetector(
+                      onTap: () => widget.onStopTapped?.call(stop),
+                      child: _buildStopMarker(index, stop),
+                    ),
+                  );
+                }),
+                if (widget.currentVanPosition != null)
+                  Marker(
+                    point: widget.currentVanPosition!,
+                    width: 40,
+                    height: 40,
+                    child: _buildVanMarker(),
+                  ),
+              ],
+            ),
+          ],
+        ),
+
+        // Floating controls
+        Positioned(
+          right: 16,
+          bottom: 20,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildControlButton(
+                icon: Icons.crop_free_rounded,
+                tooltip: 'Enquadrar Rota',
+                onPressed: _fitBounds,
+              ),
+              const SizedBox(height: 8),
+              _buildControlButton(
+                icon: Icons.add,
+                tooltip: 'Aproximar',
+                onPressed: () {
+                  _mapController.move(
+                    _mapController.camera.center,
+                    _mapController.camera.zoom + 1,
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              _buildControlButton(
+                icon: Icons.remove,
+                tooltip: 'Afastar',
+                onPressed: () {
+                  _mapController.move(
+                    _mapController.camera.center,
+                    _mapController.camera.zoom - 1,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+
+        // Mapbox watermark
+        Positioned(
+          left: 12,
+          bottom: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.primaryNavy.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.map_outlined, color: Colors.white, size: 12),
+                const SizedBox(width: 4),
+                Text(
+                  'Mapbox',
+                  style: AppTextStyles.caption.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStopMarker(int index, RouteStop stop) {
+    final isDestination = stop.isSchoolDestination;
+    final isDone = stop.isCompleted;
+
+    final bgColor = isDone
+        ? AppColors.successGreen
+        : isDestination
+            ? AppColors.primaryNavy
+            : AppColors.primaryOrange;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: bgColor,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: const [
+              BoxShadow(
+                color: AppColors.shadowMedium,
+                blurRadius: 8,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Center(
+            child: isDestination
+                ? const Icon(Icons.school_rounded, color: Colors.white, size: 18)
+                : isDone
+                    ? const Icon(Icons.check, color: Colors.white, size: 18)
+                    : Text(
+                        '$index',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+          ),
+        ),
+        // Pin pointer
+        Container(
+          width: 3,
+          height: 8,
+          color: bgColor,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVanMarker() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.primaryGold,
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.primaryNavy, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadowMedium,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: const Icon(
+        Icons.directions_bus_rounded,
+        color: AppColors.primaryNavy,
+        size: 22,
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadowLight,
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        icon: Icon(icon, size: 20, color: AppColors.primaryNavy),
+        tooltip: tooltip,
+        onPressed: onPressed,
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        padding: EdgeInsets.zero,
+      ),
+    );
+  }
+}
