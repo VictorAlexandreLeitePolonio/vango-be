@@ -23,7 +23,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.vango.vango_app</string>
+				<string>com.vango.vangoapp</string>
 			</array>
 		</dict>
 	</array>

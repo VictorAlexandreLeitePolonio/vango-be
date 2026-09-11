@@ -20,7 +20,7 @@ class AppTheme {
         secondary: AppColors.primaryGold,
         surface: AppColors.cardBackground,
         error: AppColors.errorRed,
-        onPrimary: AppColors.textLight,
+        onPrimary: AppColors.textDark,
         onSecondary: AppColors.textDark,
         onSurface: AppColors.textDark,
         onError: AppColors.textLight,
@@ -46,26 +46,26 @@ class AppTheme {
           vertical: 16,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
           borderSide: const BorderSide(color: AppColors.inputBorder),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
           borderSide: const BorderSide(color: AppColors.inputBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
           borderSide: const BorderSide(
             color: AppColors.inputFocusBorder,
             width: 2,
           ),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
           borderSide: const BorderSide(color: AppColors.errorRed),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
           borderSide: const BorderSide(color: AppColors.errorRed, width: 2),
         ),
         hintStyle: GoogleFonts.poppins(
@@ -84,10 +84,10 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryOrange,
-          foregroundColor: AppColors.textLight,
-          minimumSize: const Size(double.infinity, 54),
+          foregroundColor: AppColors.textDark,
+          minimumSize: const Size(double.infinity, 56),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
           ),
           elevation: 0,
           textStyle: GoogleFonts.poppins(
@@ -98,12 +98,15 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primaryOrange,
-          minimumSize: const Size(double.infinity, 54),
+          foregroundColor: AppColors.primaryOrangeDark,
+          minimumSize: const Size(double.infinity, 56),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
           ),
-          side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+          side: const BorderSide(
+            color: AppColors.primaryOrangeDark,
+            width: 1.5,
+          ),
           textStyle: GoogleFonts.poppins(
             fontSize: 16,
             fontWeight: FontWeight.w600,

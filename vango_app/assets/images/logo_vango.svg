@@ -1,33 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 80" fill="none">
-  <defs>
-    <linearGradient id="vanGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#F7931E"/>
-      <stop offset="100%" stop-color="#FDB813"/>
-    </linearGradient>
-  </defs>
-  <!-- Van icon -->
-  <g transform="translate(0, 10)">
-    <!-- Van body -->
-    <rect x="5" y="18" width="52" height="30" rx="6" fill="url(#vanGrad)"/>
-    <!-- Windshield -->
-    <path d="M42 18 L57 18 Q60 18 60 21 L60 35 L42 35 Z" fill="#FFF8F0" opacity="0.9"/>
-    <!-- Side window -->
-    <rect x="10" y="23" width="14" height="12" rx="3" fill="#FFF8F0" opacity="0.85"/>
-    <rect x="27" y="23" width="12" height="12" rx="3" fill="#FFF8F0" opacity="0.85"/>
-    <!-- Roof rack -->
-    <rect x="8" y="14" width="34" height="5" rx="2.5" fill="#E07B0A"/>
-    <!-- Wheels -->
-    <circle cx="18" cy="50" r="7" fill="#1A1A2E"/>
-    <circle cx="18" cy="50" r="3.5" fill="#6B7280"/>
-    <circle cx="47" cy="50" r="7" fill="#1A1A2E"/>
-    <circle cx="47" cy="50" r="3.5" fill="#6B7280"/>
-    <!-- Headlight -->
-    <rect x="55" y="30" width="5" height="6" rx="2" fill="#FDB813"/>
-    <!-- Ground line -->
-    <line x1="3" y1="57" x2="62" y2="57" stroke="#E5E7EB" stroke-width="1.5" stroke-linecap="round"/>
-  </g>
-  <!-- VanGo text -->
-  <text x="78" y="52" font-family="Poppins, sans-serif" font-size="38" font-weight="700" fill="url(#vanGrad)">
-    Van<tspan fill="#1A1A2E">Go</tspan>
-  </text>
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="80" viewBox="0 0 280 80" fill="none">
+  <rect x="4" y="8" width="64" height="64" rx="20" fill="#F28C28"/>
+  <path d="M18 46V34C18 29.6 21.6 26 26 26H48.5C53.3 26 57.5 29.1 59 33.7L61.2 40.3C61.7 41.7 62 43.2 62 44.7V49C62 52.3 59.3 55 56 55H24C20.7 55 18 52.3 18 49V46Z" fill="#FFF7EA"/>
+  <path d="M27 31H39V40H27V31ZM43 31H49.5C52 31 54.1 32.6 54.9 35L56.6 40H43V31Z" fill="#10223B"/>
+  <circle cx="29" cy="55" r="6" fill="#10223B"/>
+  <circle cx="52" cy="55" r="6" fill="#10223B"/>
+  <circle cx="29" cy="55" r="2.5" fill="#FFF7EA"/>
+  <circle cx="52" cy="55" r="2.5" fill="#FFF7EA"/>
+  <path d="M16 20C24 14 39 13 51 18" stroke="#FFF7EA" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 7"/>
+  <circle cx="55" cy="20" r="4" fill="#FFC857"/>
+  <text x="84" y="53" font-family="Poppins, sans-serif" font-size="40" font-weight="700" letter-spacing="-1.6" fill="#10223B">Van</text>
+  <text x="170" y="53" font-family="Poppins, sans-serif" font-size="40" font-weight="700" letter-spacing="-1.6" fill="#F28C28">Go</text>
 </svg>

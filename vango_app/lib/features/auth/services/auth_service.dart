@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/access_context.dart';
 import '../models/auth_result.dart';
+import '../models/onboarding_intent.dart';
 
 abstract interface class AuthService {
   Session? get currentSession;
@@ -13,7 +15,10 @@ abstract interface class AuthService {
     required String fullName,
     required String email,
     required String password,
+    required OnboardingIntent onboardingIntent,
   });
+
+  Future<AccessContext> getMyAccessContext();
 
   Future<void> sendPasswordReset({required String email});
 
@@ -49,6 +54,8 @@ abstract interface class AuthClient {
     required String userId,
     required String fullName,
   });
+
+  Future<Object?> getMyAccessContext();
 }
 
 class SupabaseAuthClient implements AuthClient {
@@ -110,13 +117,18 @@ class SupabaseAuthClient implements AuthClient {
         .update({'full_name': fullName})
         .eq('id', userId);
   }
+
+  @override
+  Future<Object?> getMyAccessContext() {
+    return _client.rpc('get_my_access_context');
+  }
 }
 
 class SupabaseAuthService implements AuthService {
   SupabaseAuthService({AuthClient? client})
     : _client = client ?? SupabaseAuthClient(Supabase.instance.client);
 
-  static const _authCallbackUrl = 'com.vango.vango_app://auth-callback/';
+  static const _authCallbackUrl = 'com.vango.vangoapp://auth-callback/';
 
   final AuthClient _client;
 
@@ -147,11 +159,15 @@ class SupabaseAuthService implements AuthService {
     required String fullName,
     required String email,
     required String password,
+    required OnboardingIntent onboardingIntent,
   }) async {
     final response = await _client.signUp(
       email: email.trim(),
       password: password,
-      data: {'full_name': fullName.trim()},
+      data: {
+        'full_name': fullName.trim(),
+        'onboarding_intent': onboardingIntent.apiValue,
+      },
       emailRedirectTo: _authCallbackUrl,
     );
     final userId = response.user?.id;
@@ -161,6 +177,20 @@ class SupabaseAuthService implements AuthService {
     }
 
     return AuthResult(userId: userId, hasSession: response.session != null);
+  }
+
+  @override
+  Future<AccessContext> getMyAccessContext() async {
+    final rows = await _client.getMyAccessContext();
+    if (rows is! List || rows.length != 1) {
+      throw const FormatException('Expected exactly one access context row');
+    }
+
+    final row = rows.single;
+    if (row is! Map<String, dynamic>) {
+      throw const FormatException('Invalid access context row');
+    }
+    return AccessContext.fromJson(row);
   }
 
   @override

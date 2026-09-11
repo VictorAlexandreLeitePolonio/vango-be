@@ -29,7 +29,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="com.vango.vango_app"
+                    android:scheme="com.vango.vangoapp"
                     android:host="auth-callback" />
             </intent-filter>
         </activity>

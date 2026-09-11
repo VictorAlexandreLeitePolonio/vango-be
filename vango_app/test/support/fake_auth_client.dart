@@ -3,9 +3,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:vango_app/features/auth/services/auth_service.dart';
 
 class FakeAuthClient implements AuthClient {
-  FakeAuthClient._({required User user, required this.session}) : _user = user;
+  FakeAuthClient._({
+    required User user,
+    required this.session,
+    required this.accessContextRows,
+  }) : _user = user;
 
-  factory FakeAuthClient.signedIn({required String userId}) {
+  factory FakeAuthClient.signedIn({
+    required String userId,
+    List<Object?> accessContextRows = const [],
+  }) {
     final user = _createUser(userId);
     return FakeAuthClient._(
       user: user,
@@ -15,14 +22,20 @@ class FakeAuthClient implements AuthClient {
         tokenType: 'bearer',
         user: user,
       ),
+      accessContextRows: accessContextRows,
     );
   }
 
   factory FakeAuthClient.emailConfirmationRequired() {
-    return FakeAuthClient._(user: _createUser('user-1'), session: null);
+    return FakeAuthClient._(
+      user: _createUser('user-1'),
+      session: null,
+      accessContextRows: const [],
+    );
   }
 
   final User _user;
+  final List<Object?> accessContextRows;
   Session? session;
   String? lastEmail;
   String? lastPassword;
@@ -33,6 +46,13 @@ class FakeAuthClient implements AuthClient {
   int resetPasswordCalls = 0;
   int updatePasswordCalls = 0;
   int signOutCalls = 0;
+  int accessContextCalls = 0;
+
+  @override
+  Future<Object?> getMyAccessContext() async {
+    accessContextCalls += 1;
+    return accessContextRows;
+  }
 
   @override
   Session? get currentSession => session;

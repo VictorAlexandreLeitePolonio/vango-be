@@ -1,109 +1,49 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 300" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="300" viewBox="0 0 360 300" fill="none">
   <defs>
-    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#FFF8F0"/>
-      <stop offset="100%" stop-color="#FEF3E2"/>
+    <linearGradient id="background" x1="18" y1="12" x2="342" y2="288" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#10223B"/>
+      <stop offset="1" stop-color="#183553"/>
     </linearGradient>
-    <linearGradient id="vanGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#F7931E"/>
-      <stop offset="100%" stop-color="#FDB813"/>
+    <linearGradient id="van" x1="110" y1="184" x2="258" y2="248" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F28C28"/>
+      <stop offset="1" stop-color="#FFC857"/>
     </linearGradient>
-    <linearGradient id="roadGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#E5E7EB"/>
-      <stop offset="100%" stop-color="#D1D5DB"/>
-    </linearGradient>
+    <filter id="shadow" x="80" y="170" width="210" height="105" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#07121F" flood-opacity=".34"/>
+    </filter>
+    <clipPath id="clip0">
+      <rect width="360" height="300" fill="white"/>
+    </clipPath>
   </defs>
-
-  <!-- Background -->
-  <rect width="360" height="300" fill="url(#skyGrad)"/>
-
-  <!-- Clouds -->
-  <g opacity="0.4">
-    <ellipse cx="70" cy="60" rx="35" ry="14" fill="#FDB813"/>
-    <ellipse cx="55" cy="55" rx="25" ry="12" fill="#FDB813"/>
-    <ellipse cx="280" cy="45" rx="40" ry="15" fill="#FDB813"/>
-    <ellipse cx="300" cy="40" rx="25" ry="11" fill="#FDB813"/>
-    <ellipse cx="180" cy="35" rx="30" ry="12" fill="#FDB813"/>
+  <g clip-path="url(#clip0)">
+    <rect width="360" height="300" rx="32" fill="url(#background)"/>
+    <circle cx="314" cy="32" r="86" fill="#244967" opacity=".65"/>
+    <circle cx="42" cy="278" r="94" fill="#0B1B30" opacity=".72"/>
+    <path d="M52 104C96 62 145 69 171 108C198 149 243 147 300 94" stroke="#FFC857" stroke-width="4" stroke-linecap="round" stroke-dasharray="3 11"/>
+    <circle cx="52" cy="104" r="9" fill="#F28C28"/>
+    <circle cx="300" cy="94" r="9" fill="#70C1A8"/>
+    <path d="M52 118L39 139H65L52 118Z" fill="#F28C28"/>
+    <rect x="40" y="139" width="24" height="22" rx="3" fill="#FFF7EA"/>
+    <rect x="47" y="146" width="5" height="15" rx="1" fill="#10223B"/>
+    <rect x="55" y="146" width="5" height="6" rx="1" fill="#F28C28"/>
+    <path d="M300 107L280 123V158H320V123L300 107Z" fill="#FFF7EA"/>
+    <path d="M300 107L277 126M300 107L323 126" stroke="#70C1A8" stroke-width="5" stroke-linecap="round"/>
+    <rect x="295" y="137" width="10" height="21" rx="2" fill="#10223B"/>
+    <path d="M34 254C99 231 251 231 326 254" stroke="#FFF7EA" stroke-width="2" opacity=".24"/>
+    <g filter="url(#shadow)">
+      <path d="M103 217V194C103 184.1 111.1 176 121 176H225C235.1 176 244 182.5 247.1 192.1L254 213.2C255.3 217.1 256 221.1 256 225.2V235C256 242.7 249.7 249 242 249H117C109.3 249 103 242.7 103 235V217Z" fill="url(#van)"/>
+      <path d="M123 185H164V211H123V185ZM174 185H215.5C225.6 185 234.5 191.5 237.6 201.1L240.8 211H174V185Z" fill="#FFF7EA"/>
+      <path d="M164 184V212" stroke="#10223B" stroke-width="3" opacity=".22"/>
+      <rect x="122" y="218" width="87" height="15" rx="7.5" fill="#D86E18" opacity=".72"/>
+      <path d="M137 225.5H194" stroke="#FFF7EA" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="4 6"/>
+      <circle cx="139" cy="248" r="16" fill="#10223B"/>
+      <circle cx="139" cy="248" r="7" fill="#FFF7EA"/>
+      <circle cx="222" cy="248" r="16" fill="#10223B"/>
+      <circle cx="222" cy="248" r="7" fill="#FFF7EA"/>
+      <rect x="248" y="205" width="10" height="12" rx="4" fill="#FFF7EA"/>
+    </g>
+    <circle cx="77" cy="56" r="4" fill="#FFF7EA" opacity=".6"/>
+    <circle cx="102" cy="42" r="3" fill="#FFC857"/>
+    <circle cx="275" cy="49" r="4" fill="#FFF7EA" opacity=".5"/>
   </g>
-
-  <!-- Buildings background -->
-  <g opacity="0.15">
-    <rect x="20" y="110" width="40" height="120" rx="4" fill="#F7931E"/>
-    <rect x="70" y="90" width="35" height="140" rx="4" fill="#E07B0A"/>
-    <rect x="115" y="120" width="30" height="110" rx="4" fill="#F7931E"/>
-    <rect x="200" y="100" width="38" height="130" rx="4" fill="#E07B0A"/>
-    <rect x="248" y="115" width="32" height="115" rx="4" fill="#F7931E"/>
-    <rect x="290" y="95" width="42" height="135" rx="4" fill="#E07B0A"/>
-  </g>
-
-  <!-- Building windows -->
-  <g opacity="0.08">
-    <rect x="28" y="120" width="8" height="8" rx="1" fill="#FDB813"/>
-    <rect x="28" y="135" width="8" height="8" rx="1" fill="#FDB813"/>
-    <rect x="42" y="120" width="8" height="8" rx="1" fill="#FDB813"/>
-    <rect x="42" y="135" width="8" height="8" rx="1" fill="#FDB813"/>
-    <rect x="78" y="100" width="8" height="8" rx="1" fill="#FDB813"/>
-    <rect x="78" y="115" width="8" height="8" rx="1" fill="#FDB813"/>
-    <rect x="90" y="100" width="8" height="8" rx="1" fill="#FDB813"/>
-  </g>
-
-  <!-- Trees -->
-  <g opacity="0.2">
-    <circle cx="160" cy="175" r="20" fill="#10B981"/>
-    <rect x="157" y="190" width="6" height="15" fill="#6B7280"/>
-    <circle cx="340" cy="180" r="16" fill="#10B981"/>
-    <rect x="337" y="192" width="6" height="12" fill="#6B7280"/>
-  </g>
-
-  <!-- Road -->
-  <rect x="0" y="230" width="360" height="40" fill="url(#roadGrad)" rx="0"/>
-  <g opacity="0.5">
-    <rect x="30" y="248" width="30" height="4" rx="2" fill="#FAFAFA"/>
-    <rect x="100" y="248" width="30" height="4" rx="2" fill="#FAFAFA"/>
-    <rect x="170" y="248" width="30" height="4" rx="2" fill="#FAFAFA"/>
-    <rect x="240" y="248" width="30" height="4" rx="2" fill="#FAFAFA"/>
-    <rect x="310" y="248" width="30" height="4" rx="2" fill="#FAFAFA"/>
-  </g>
-
-  <!-- Van (main element) -->
-  <g transform="translate(100, 185)">
-    <!-- Shadow -->
-    <ellipse cx="70" cy="62" rx="60" ry="6" fill="#1A1A2E" opacity="0.1"/>
-    <!-- Van body -->
-    <rect x="0" y="10" width="140" height="50" rx="10" fill="url(#vanGrad2)"/>
-    <!-- Roof -->
-    <path d="M10 10 Q10 0 20 0 L100 0 Q110 0 110 10 Z" fill="#E07B0A"/>
-    <!-- Front -->
-    <path d="M110 10 L140 10 Q145 10 145 15 L145 50 Q145 55 140 55 L110 55 Z" fill="#E07B0A"/>
-    <!-- Windows -->
-    <rect x="10" y="17" width="25" height="20" rx="5" fill="#FFF8F0" opacity="0.9"/>
-    <rect x="40" y="17" width="25" height="20" rx="5" fill="#FFF8F0" opacity="0.9"/>
-    <rect x="70" y="17" width="25" height="20" rx="5" fill="#FFF8F0" opacity="0.9"/>
-    <!-- Windshield -->
-    <path d="M105 15 L138 15 Q140 15 140 17 L140 42 Q140 44 138 44 L105 44 Z" fill="#FFF8F0" opacity="0.9"/>
-    <!-- Headlight -->
-    <rect x="140" y="25" width="6" height="10" rx="3" fill="#FDB813"/>
-    <!-- Taillight -->
-    <rect x="-2" y="30" width="4" height="8" rx="2" fill="#EF4444" opacity="0.8"/>
-    <!-- Wheels -->
-    <circle cx="30" cy="60" r="12" fill="#1A1A2E"/>
-    <circle cx="30" cy="60" r="6" fill="#6B7280"/>
-    <circle cx="30" cy="60" r="2.5" fill="#9CA3AF"/>
-    <circle cx="115" cy="60" r="12" fill="#1A1A2E"/>
-    <circle cx="115" cy="60" r="6" fill="#6B7280"/>
-    <circle cx="115" cy="60" r="2.5" fill="#9CA3AF"/>
-    <!-- "ESCOLAR" text on side -->
-    <rect x="15" y="42" width="80" height="12" rx="3" fill="#E07B0A"/>
-    <text x="55" y="52" font-family="sans-serif" font-size="8" font-weight="700" fill="#FFF8F0" text-anchor="middle">ESCOLAR</text>
-  </g>
-
-  <!-- Motion lines -->
-  <g opacity="0.3">
-    <line x1="80" y1="215" x2="60" y2="215" stroke="#F7931E" stroke-width="2" stroke-linecap="round"/>
-    <line x1="85" y1="225" x2="55" y2="225" stroke="#F7931E" stroke-width="2" stroke-linecap="round"/>
-    <line x1="82" y1="235" x2="65" y2="235" stroke="#F7931E" stroke-width="1.5" stroke-linecap="round"/>
-  </g>
-
-  <!-- Sidewalk -->
-  <rect x="0" y="270" width="360" height="30" fill="#F3F4F6"/>
 </svg>

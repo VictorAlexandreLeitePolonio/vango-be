@@ -48,13 +48,13 @@ class _VanGoTextFieldState extends State<VanGoTextField> {
         setState(() => _isFocused = focused);
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: _isFocused
               ? [
                   BoxShadow(
-                    color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                    color: AppColors.primaryOrangeDark.withValues(alpha: 0.12),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -85,7 +85,7 @@ class _VanGoTextFieldState extends State<VanGoTextField> {
             suffixIcon: widget.isPassword
                 ? IconButton(
                     icon: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
+                      duration: const Duration(milliseconds: 160),
                       child: Icon(
                         _obscureText
                             ? Icons.visibility_off_outlined

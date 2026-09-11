@@ -30,7 +30,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 260),
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -60,98 +60,112 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.backgroundCream,
       body: Column(
         children: [
-          // ── Top: gradient + logo + illustration ─────────────
+          // ── Top: logo + illustration ────────────────────────────
           Expanded(
-            flex: 55,
-            child: Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: AppColors.backgroundGradient,
-              ),
-              child: SafeArea(
-                bottom: false,
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 16),
-                      const VanGoLogo(size: VanGoLogoSize.large),
-                      const SizedBox(height: 24),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 40),
-                          child: SvgPicture.asset(
-                            AppAssets.onboardingIllustration,
-                            fit: BoxFit.contain,
+            child: SafeArea(
+              bottom: false,
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    const VanGoLogo(
+                      key: Key('welcomeLogo'),
+                      size: VanGoLogoSize.large,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 440),
+                          child: AspectRatio(
+                            aspectRatio: 1.2,
+                            child: SvgPicture.asset(
+                              AppAssets.onboardingIllustration,
+                              key: const Key('onboardingBanner'),
+                              width: double.infinity,
+                              fit: BoxFit.contain,
+                              semanticsLabel:
+                                  'Van escolar conectando a escola ao destino '
+                                  'por uma rota segura',
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                 ),
               ),
             ),
           ),
 
-          // ── Bottom: white card with text and buttons ────────
-          Expanded(
-            flex: 45,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Container(
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(32),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.shadowMedium,
-                        blurRadius: 24,
-                        offset: Offset(0, -4),
+          // ── Bottom: white card with text and buttons ────────────
+          Padding(
+            padding: const EdgeInsets.only(bottom: 40),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Container(
+                      key: const Key('welcomeActionCard'),
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        color: AppColors.cardBackground,
+                        borderRadius: BorderRadius.all(Radius.circular(32)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.shadowMedium,
+                            blurRadius: 24,
+                            offset: Offset(0, -4),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 36, 28, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Transporte escolar\nseguro e organizado',
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.heading2,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Transporte escolar\nseguro e organizado',
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.heading2,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Conecte-se com frotas, acompanhe viagens\ne tenha tranquilidade',
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.subtitle,
+                            ),
+                            const SizedBox(height: 32),
+                            VanGoButton(
+                              text: 'Entrar',
+                              onPressed: () {
+                                Navigator.pushNamed(context, AppRoutes.login);
+                              },
+                            ),
+                            const SizedBox(height: 14),
+                            VanGoButton(
+                              text: 'Criar Conta',
+                              isOutlined: true,
+                              onPressed: () {
+                                Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.register,
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Conecte-se com frotas, acompanhe viagens\ne tenha tranquilidade',
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.subtitle,
-                        ),
-                        const Spacer(),
-                        VanGoButton(
-                          text: 'Entrar',
-                          onPressed: () {
-                            Navigator.pushNamed(context, AppRoutes.login);
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        VanGoButton(
-                          text: 'Criar Conta',
-                          isOutlined: true,
-                          onPressed: () {
-                            Navigator.pushNamed(context, AppRoutes.register);
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                      ],
+                      ),
                     ),
                   ),
                 ),

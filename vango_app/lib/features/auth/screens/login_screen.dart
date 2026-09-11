@@ -38,7 +38,7 @@ class _LoginScreenState extends State<LoginScreen>
     _authService = widget.authService ?? SupabaseAuthService();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 220),
     );
     _fadeAnimation = CurvedAnimation(
       parent: _animController,
@@ -139,107 +139,121 @@ class _LoginScreenState extends State<LoginScreen>
           opacity: _fadeAnimation,
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 8),
-
-                  // ── Logo ──────────────────────────────────
-                  const VanGoLogo(size: VanGoLogoSize.medium),
-                  const SizedBox(height: 32),
-
-                  // ── Title ─────────────────────────────────
-                  Text('Bem-vindo de volta!', style: AppTextStyles.heading2),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Entre com sua conta para continuar',
-                    style: AppTextStyles.subtitle,
-                  ),
-                  const SizedBox(height: 36),
-
-                  // ── Email field ───────────────────────────
-                  VanGoTextField(
-                    controller: _emailController,
-                    label: 'E-mail',
-                    hint: 'seu@email.com',
-                    prefixIcon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.email],
-                    validator: _validateEmail,
-                  ),
-                  const SizedBox(height: 18),
-
-                  // ── Password field ────────────────────────
-                  VanGoTextField(
-                    controller: _passwordController,
-                    label: 'Senha',
-                    hint: '••••••',
-                    prefixIcon: Icons.lock_outline_rounded,
-                    isPassword: true,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const [AutofillHints.password],
-                    validator: _validatePassword,
-                    onFieldSubmitted: (_) => _handleLogin(),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ── Forgot password link ──────────────────
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, AppRoutes.forgotPassword);
-                      },
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 0),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        'Esqueci minha senha',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.primaryOrange,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-
-                  // ── Submit button ─────────────────────────
-                  VanGoButton(
-                    text: 'Entrar',
-                    isLoading: _isLoading,
-                    onPressed: _handleLogin,
-                  ),
-                  const SizedBox(height: 28),
-
-                  // ── Register link ─────────────────────────
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      const SizedBox(height: 8),
+
+                      // ── Logo ──────────────────────────────────
+                      const VanGoLogo(size: VanGoLogoSize.medium),
+                      const SizedBox(height: 32),
+
+                      // ── Title ─────────────────────────────────
                       Text(
-                        'Não tem conta? ',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.textMuted,
+                        'Bem-vindo de volta!',
+                        style: AppTextStyles.heading2,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Entre com sua conta para continuar',
+                        style: AppTextStyles.subtitle,
+                      ),
+                      const SizedBox(height: 36),
+
+                      // ── Email field ───────────────────────────
+                      VanGoTextField(
+                        controller: _emailController,
+                        label: 'E-mail',
+                        hint: 'seu@email.com',
+                        prefixIcon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.email],
+                        validator: _validateEmail,
+                      ),
+                      const SizedBox(height: 18),
+
+                      // ── Password field ────────────────────────
+                      VanGoTextField(
+                        controller: _passwordController,
+                        label: 'Senha',
+                        hint: '••••••',
+                        prefixIcon: Icons.lock_outline_rounded,
+                        isPassword: true,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.password],
+                        validator: _validatePassword,
+                        onFieldSubmitted: (_) => _handleLogin(),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ── Forgot password link ──────────────────
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.pushNamed(
+                              context,
+                              AppRoutes.forgotPassword,
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            'Esqueci minha senha',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.primaryOrangeDark,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pushReplacementNamed(
-                            context,
-                            AppRoutes.register,
-                          );
-                        },
-                        child: Text('Registrar-se', style: AppTextStyles.link),
+                      const SizedBox(height: 28),
+
+                      // ── Submit button ─────────────────────────
+                      VanGoButton(
+                        text: 'Entrar',
+                        isLoading: _isLoading,
+                        onPressed: _handleLogin,
                       ),
+                      const SizedBox(height: 28),
+
+                      // ── Register link ─────────────────────────
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Não tem conta? ',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pushReplacementNamed(
+                                context,
+                                AppRoutes.register,
+                              );
+                            },
+                            child: Text(
+                              'Registrar-se',
+                              style: AppTextStyles.link,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                ],
+                ),
               ),
             ),
           ),
