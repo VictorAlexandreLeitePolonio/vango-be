@@ -8,15 +8,22 @@ import '../models/onboarding_intent.dart';
 import '../services/auth_error_mapper.dart';
 import '../services/auth_service.dart';
 
+import '../../driver/models/driver_trip.dart';
+import '../../driver/services/driver_route_service.dart';
+import '../../driver/widgets/driver_trip_card.dart';
+import '../../../core/routes/app_routes.dart';
+
 class AuthenticatedHomeScreen extends StatefulWidget {
   const AuthenticatedHomeScreen({
     super.key,
     required this.authService,
     required this.accessContext,
+    this.driverRouteService,
   });
 
   final AuthService authService;
   final AccessContext accessContext;
+  final DriverRouteService? driverRouteService;
 
   @override
   State<AuthenticatedHomeScreen> createState() =>
@@ -26,11 +33,22 @@ class AuthenticatedHomeScreen extends StatefulWidget {
 class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
   bool _isSigningOut = false;
   AccountRole? _selectedRole;
+  late final DriverRouteService _driverRouteService;
+  DriverTrip? _driverTrip;
 
   @override
   void initState() {
     super.initState();
     _selectedRole = _availableRoles.firstOrNull;
+    _driverRouteService = widget.driverRouteService ?? DriverRouteService();
+    _loadDriverTrip();
+  }
+
+  Future<void> _loadDriverTrip() async {
+    final trip = await _driverRouteService.getTodayTrip();
+    if (mounted) {
+      setState(() => _driverTrip = trip);
+    }
   }
 
   @override
@@ -75,48 +93,213 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
         ? _setupMessage(widget.accessContext.onboardingIntent)
         : _roleTitle(selectedRole);
 
+    final isDriver = selectedRole == AccountRole.driver ||
+        (selectedRole == null &&
+            widget.accessContext.onboardingIntent == OnboardingIntent.driver);
+
+    final isFleetOwner = selectedRole == AccountRole.owner ||
+        (selectedRole == null &&
+            widget.accessContext.onboardingIntent == OnboardingIntent.fleetOwner);
+
+    final isGuardianOrStudent = selectedRole == AccountRole.guardian ||
+        selectedRole == AccountRole.student ||
+        (selectedRole == null &&
+            (widget.accessContext.onboardingIntent == OnboardingIntent.guardian ||
+                widget.accessContext.onboardingIntent == OnboardingIntent.adultStudent));
+
     return Scaffold(
       backgroundColor: AppColors.backgroundWhite,
       appBar: AppBar(title: const Text('VanGo')),
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  contentTitle,
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.heading2,
-                ),
-                const SizedBox(height: 12),
-                Text(accountLabel, style: AppTextStyles.bodyMedium),
-                if (availableRoles.length > 1) ...[
-                  const SizedBox(height: 24),
-                  Semantics(
-                    label: 'Perfil de acesso',
-                    child: DropdownButton<AccountRole>(
-                      value: selectedRole,
-                      items: availableRoles.map((role) {
-                        return DropdownMenuItem(
-                          value: role,
-                          child: Text(_roleLabel(role)),
-                        );
-                      }).toList(),
-                      onChanged: (role) {
-                        if (role != null) setState(() => _selectedRole = role);
-                      },
+        child: SingleChildScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      contentTitle,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.heading2,
                     ),
-                  ),
-                ],
-                const SizedBox(height: 32),
-                VanGoButton(
-                  text: 'Sair',
-                  isLoading: _isSigningOut,
-                  onPressed: _handleSignOut,
+                    const SizedBox(height: 8),
+                    Text(accountLabel, style: AppTextStyles.bodyMedium),
+                    if (availableRoles.length > 1) ...[
+                      const SizedBox(height: 20),
+                      Semantics(
+                        label: 'Perfil de acesso',
+                        child: DropdownButton<AccountRole>(
+                          value: selectedRole,
+                          items: availableRoles.map((role) {
+                            return DropdownMenuItem(
+                              value: role,
+                              child: Text(_roleLabel(role)),
+                            );
+                          }).toList(),
+                          onChanged: (role) {
+                            if (role != null) setState(() => _selectedRole = role);
+                          },
+                        ),
+                      ),
+                    ],
+                    if (isDriver && _driverTrip != null) ...[
+                      const SizedBox(height: 24),
+                      DriverTripCard(
+                        trip: _driverTrip!,
+                        onViewRoute: () async {
+                          await Navigator.pushNamed(context, AppRoutes.driverRoute);
+                          _loadDriverTrip();
+                        },
+                      ),
+                    ],
+                    if (isFleetOwner) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(22),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBackground,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: AppColors.shadowLight,
+                              blurRadius: 16,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: AppColors.primaryOrange.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.admin_panel_settings_outlined,
+                                    color: AppColors.primaryOrangeDark,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Painel da Frota',
+                                        style: AppTextStyles.heading3.copyWith(fontSize: 18),
+                                      ),
+                                      Text(
+                                        'Aprove pedidos e veja sua equipe',
+                                        style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            VanGoButton(
+                              text: 'Acessar Gestão da Frota',
+                              onPressed: () {
+                                Navigator.pushNamed(context, AppRoutes.fleetDashboard);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (isGuardianOrStudent) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(22),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBackground,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: AppColors.shadowLight,
+                              blurRadius: 16,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: AppColors.inputBorder.withValues(alpha: 0.8),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryGold.withValues(alpha: 0.25),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.directions_bus_rounded,
+                                    color: AppColors.primaryOrangeDark,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Transporte Escolar',
+                                        style: AppTextStyles.heading3.copyWith(fontSize: 18),
+                                      ),
+                                      Text(
+                                        'Encontre vans ou gerencie alunos',
+                                        style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            VanGoButton(
+                              text: 'Buscar Vans Disponíveis',
+                              onPressed: () {
+                                Navigator.pushNamed(context, AppRoutes.vansMarketplace);
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            VanGoButton(
+                              text: 'Cadastrar Novo Aluno',
+                              isOutlined: true,
+                              onPressed: () {
+                                Navigator.pushNamed(context, AppRoutes.studentRegister);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 28),
+                    VanGoButton(
+                      text: 'Sair',
+                      isLoading: _isSigningOut,
+                      onPressed: _handleSignOut,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
