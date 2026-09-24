@@ -1,7 +1,7 @@
 # Sprint PRD #10 — Owner fleet student registration contracts
 
 **Date:** September 24, 2026
-**Status:** Conversational design approved; written spec review pending
+**Status:** Approved for implementation after review corrections
 **Related work:** [Sprint PRD #8](https://github.com/VictorAlexandreLeitePolonio/vango-be/issues/8), [Task #9](https://github.com/VictorAlexandreLeitePolonio/vango-be/issues/9), [Task #10](https://github.com/VictorAlexandreLeitePolonio/vango-be/issues/10), [Task #12](https://github.com/VictorAlexandreLeitePolonio/vango-be/issues/12)
 **Schema dependency:** `supabase/migrations/20260924002539_prd_9_fleet_managed_student_model.sql`
 
@@ -30,6 +30,7 @@ The input contains:
 
 - `p_fleet_id uuid` and `p_command_id uuid`;
 - student type, name, birth date, and the existing student address fields;
+- required `p_latitude numeric` and `p_longitude numeric` resolved for the student's address;
 - `p_school_id uuid` and `p_shift text`;
 - the primary operational contact's name, optional email, and optional phone.
 
@@ -44,6 +45,7 @@ Before creating or returning a registration result, require:
 3. An active school included in `fleet_service_schools` for the selected fleet. The fleet does not need to be published. City membership in `fleet_service_cities` is not an additional requirement for this direct flow.
 4. A valid shift from the existing supported shift values.
 5. Valid student and address fields using `private.validate_student_fields` with the same canonical values that will be persisted.
+   Both coordinates are required for this operational registration. Reject a missing or partial pair and values outside latitude `[-90, 90]` or longitude `[-180, 180]`; do not infer, geocode, or hardcode fallback coordinates in the database.
 6. A student type consistent with age: `minor` is under 18; `adult` is 18 or older.
 7. A nonblank primary contact name and at least one nonblank email or phone.
 
@@ -80,7 +82,9 @@ Add these columns to `public.fleet_enrollments`:
 
 For `source_type = 'owner_registration'`, both fields are required. For `source_type = 'join_request'`, both fields are null. Add a partial unique index on `(fleet_id, registration_command_id)` where `source_type = 'owner_registration'`. Extend the existing enrollment provenance immutability trigger so the command ID and payload hash cannot be changed after creation.
 
-The hash is SHA-256 over a deterministic JSONB payload built from the normalized values actually persisted. Normalize text once, use `NULL` for blank optional values, and use explicit stable keys and types. Validation and persistence consume those same canonical values. Do not hash raw parameters or store the raw command payload in the receipt.
+Update existing SQL test fixtures that insert `owner_registration` enrollments directly to supply explicit unique command IDs and hashes. Do not add a generic database default to keep those fixtures passing.
+
+The hash is SHA-256 over a deterministic JSONB payload built from the normalized values actually persisted, including latitude and longitude. Normalize text once, use `NULL` for blank optional values, and use explicit stable keys and types. Validation and persistence consume those same canonical values. Do not hash raw parameters or store the raw command payload in the receipt.
 
 Use `students.created_by` to verify the actor on replay. The RPC sets it to `auth.uid()`; authenticated clients have no direct update grant on `students`, and supported write RPCs must not change it. Do not add a duplicate `registration_actor_user_id` column.
 
@@ -119,7 +123,7 @@ The result projection is:
 | `school_name` | Display label |
 | `shift` | Enrollment operational schedule |
 
-Return address fields separately; Flutter formats them for display. Do not return `profile_id`, Auth data, contact names/emails/phones, latitude, or longitude. The RPC verifies active owner membership. A nonexistent fleet and a fleet outside the caller's authorized scope both return `not_found`, preventing the read contract from becoming a fleet-discovery endpoint. Flutter uses this RPC instead of reading `fleet_student_contacts` directly. The existing driver-route service remains outside this contract.
+Return address fields separately; Flutter formats them for display. Order the result deterministically by `lower(full_name), student_id`. Do not return `profile_id`, Auth data, contact names/emails/phones, latitude, or longitude. The RPC verifies active owner membership. A nonexistent fleet and a fleet outside the caller's authorized scope both return `not_found`, preventing the read contract from becoming a fleet-discovery endpoint. Flutter uses this RPC instead of reading `fleet_student_contacts` directly. The existing driver-route service remains outside this contract.
 
 ## Error contract
 
@@ -143,7 +147,7 @@ Write focused pgTAP tests first and verify each targeted test fails for the expe
 - A driver-only user, an owner from another fleet, an anonymous user, and an unconfirmed user cannot create students; a confirmed active owner can.
 - A nonexistent fleet or unauthorized fleet read returns `not_found`; owner read succeeds.
 - The fleet may be unpublished; the selected school must be active and in the fleet's configured school coverage.
-- Invalid ages, type/age mismatches, address, contact, or shift fail with stable domain errors and no partial writes.
+- Invalid ages, type/age mismatches, address, missing/partial/out-of-range coordinates, contact, or shift fail with stable domain errors and no partial writes.
 - Existing minor/adult self-service, marketplace, and invitation regression tests continue to pass.
 - A same-fleet replay with the same command ID, actor, and canonical payload returns the same student/enrollment IDs and leaves exactly one student, enrollment, primary contact, and registration audit event.
 - Equivalent canonical values (for example, a trimmed name and blank optional field normalized to null) replay successfully rather than conflict.
@@ -153,6 +157,7 @@ Write focused pgTAP tests first and verify each targeted test fails for the expe
 - A failure during student, enrollment, contact, or audit creation rolls back the full registration.
 - Audit metadata contains no name, birth date, address, contact value, coordinates, raw payload, or payload hash.
 - `list_fleet_students` returns active enrollments from both source types and includes `enrollment_id` plus the specified structured fields.
+- `list_fleet_students` orders rows by `lower(full_name), student_id` across repeated calls.
 - The read projection excludes `profile_id`, email, phone, latitude, and longitude; ended enrollments and students from other fleets are not returned.
 
 ## Migration and delivery

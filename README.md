@@ -52,6 +52,12 @@ Primary guardians create minor student profiles, while adult students create the
 
 Fleet owners can also register a minor or adult before the student has an account. These records retain the `fleet_owner_created` origin even if an adult profile is linked later, and the direct enrollment records its school and shift without creating a join request or guardian relationship for a pre-auth contact. Contact details are stored separately with owner-only reads. Accepting a fleet invitation still creates a pending request; the enrollment is created only after approval.
 
+### Owner student RPCs
+
+`create_fleet_managed_student` accepts a fleet ID, command UUID, student type and details, structured address, required latitude and longitude, covered school, shift, and primary contact. An active owner with a confirmed email can create a student, active enrollment, contact, and sanitized audit event in one transaction. The selected school must be active and covered by the fleet; the fleet need not be published. No Auth account, guardian link, or join request is created. The RPC returns `student_id` and `enrollment_id`. Repeating the same command with the same owner and canonical payload returns those IDs; changing the owner or payload returns `idempotency_conflict`. A new command creates a new registration even for matching personal details.
+
+`list_fleet_students(p_fleet_id uuid)` returns active enrollments from both registration origins to an active owner, ordered by lowercase student name and student ID. Its fields are enrollment/student IDs, student type and name, structured address, school ID/name, and shift. It excludes contacts, profile/Auth data, coordinates, and idempotency receipts. Missing or unauthorized fleets return `not_found`. Migrations `20260924104811_prd_10_owner_fleet_student_rpcs.sql` and `20260924105909_prd_10_registration_replay_after_coverage_change.sql` are applied to the linked VanGo project; the latter keeps valid retries working after school coverage or age changes.
+
 Owners can also invite guardians or adult students. Flutter retains the token during sign-up/login callbacks; the backend stores only the SHA-256 hash and accepts invitations only for matching confirmed emails. Secondary guardians receive derived access to the dependent's active links.
 
 Approval requires full seat allocation in the same transaction; accepting an invitation creates a pending request. New requests and schedule changes compete for seats by seniority among fully compatible entries, subject to owner acceptance or rejection.

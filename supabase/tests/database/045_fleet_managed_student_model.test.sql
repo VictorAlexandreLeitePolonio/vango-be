@@ -147,20 +147,24 @@ select lives_ok(
 reset role;
 select lives_ok(
   $$insert into public.fleet_enrollments (
-    fleet_id, student_id, source_type, source_request_id, school_id, shift
+    fleet_id, student_id, source_type, source_request_id, school_id, shift,
+    registration_command_id, registration_payload_hash
   ) values (
     '41000000-0000-0000-0000-000000000001',
     (select id from public.students where full_name = 'PRD9 Owner Minor'),
-    'owner_registration', null, '63000000-0000-0000-0000-000000000001', 'morning'
+    'owner_registration', null, '63000000-0000-0000-0000-000000000001', 'morning',
+    '90000000-0000-0000-0000-000000000045', extensions.digest('minor fixture', 'sha256')
   )$$,
   'owner registration creates an enrollment without a request'
 );
 insert into public.fleet_enrollments (
-  fleet_id, student_id, source_type, source_request_id, school_id, shift
+  fleet_id, student_id, source_type, source_request_id, school_id, shift,
+  registration_command_id, registration_payload_hash
 ) values (
   '41000000-0000-0000-0000-000000000002',
   (select id from public.students where full_name = 'PRD9 Owner Adult'),
-  'owner_registration', null, '63000000-0000-0000-0000-000000000001', 'morning'
+  'owner_registration', null, '63000000-0000-0000-0000-000000000001', 'morning',
+  '90000000-0000-0000-0000-000000000046', extensions.digest('adult fixture', 'sha256')
 );
 select throws_ok(
   $$do $body$

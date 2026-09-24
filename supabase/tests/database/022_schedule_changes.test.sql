@@ -155,12 +155,14 @@ insert into public.students (
   'Centro', 'Cidade Teste', '3550000', 'SP', '40000000-0000-0000-0000-000000000001'
 );
 insert into public.fleet_enrollments (
-  fleet_id, student_id, source_type, source_request_id, school_id, shift
+  fleet_id, student_id, source_type, source_request_id, school_id, shift,
+  registration_command_id, registration_payload_hash
 ) values (
   '41000000-0000-0000-0000-000000000001',
   (select id from public.students where full_name = 'PRD9 Direct Schedule Student'),
   'owner_registration', null,
-  (select id from planning_ids where kind = 'school'), 'evening'
+  (select id from planning_ids where kind = 'school'), 'evening',
+  '90000000-0000-0000-0000-000000000022', extensions.digest('schedule fixture', 'sha256')
 );
 select set_config(
   'request.jwt.claims',

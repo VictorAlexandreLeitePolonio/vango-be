@@ -171,3 +171,17 @@ This file records only features, files, migrations, and validation test results 
 Local: 41 migrations reset; 850 pgTAP assertions across 44 files passed; 45 Deno tests passed; typecheck, lint, and format passed; 14 real PostgreSQL concurrency races passed; real WebSocket tests passed.
 
 Remote SQL Deployment (2026-09-08): `npx supabase db push` successfully applied 25 pending migrations to the remote Supabase project (`njjeopcxhnkeszukaoma`). Remote history confirmed: 41 migrations, ending at `20260907235848`. Zero public tables without RLS, zero `SECURITY DEFINER` functions without search_path. Fleets and schools remain empty without remote seeds. FCM secrets, Edge Function deployment, device testing, and map provider integration remain pending.
+
+## Sprint PRD #10 — Owner Fleet Student RPCs
+
+**Status:** Applied to the linked VanGo project on 2026-09-24, including a forward-only replay correction.
+
+**Migration:** `20260924104811_prd_10_owner_fleet_student_rpcs.sql` adds immutable owner-registration command receipts and the `create_fleet_managed_student` and `list_fleet_students` RPCs. Registration requires valid coordinates and an active covered school; it creates the student, enrollment, contact, and sanitized audit event atomically. The list returns active enrollments from both source types with an owner-only privacy projection.
+
+**Replay correction:** `20260924105909_prd_10_registration_replay_after_coverage_change.sql` moves receipt comparison before mutable school and age checks. The first migration remains unchanged after deployment.
+
+**Observed validation:** Local `supabase db reset` passed; focused pgTAP files `022`, `045`, and `046` passed 35, 66, and 65 assertions respectively after the correction. The two-session registration race returned the same IDs with one student, enrollment, contact, and audit event. Local database lint had no errors in the new functions; local advisors reported no issues. `git diff --check` passed. The full database suite was not run for this task.
+
+**Commands executed:** `supabase db reset`; `psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -X -v ON_ERROR_STOP=1 -f supabase/tests/database/{022_schedule_changes,045_fleet_managed_student_model,046_owner_fleet_student_rpcs}.test.sql` (each file separately, with local credentials supplied); `python3 supabase/tests/concurrency/fleet_student_registration.py` with explicit local `PGHOST`, `PGPORT`, `PGDATABASE`, and `PGUSER`; `supabase db lint --local --schema public,private --fail-on error`; `supabase db advisors --local --type all --level error --fail-on error`; and `git diff --check`.
+
+**Remote verification:** The linked project was `njjeopcxhnkeszukaoma` (VanGo). Each dry run showed exactly its corresponding Task #10 migration pending. `supabase db push --linked --skip-vault` applied both in order; remote history lists `20260924104811` and `20260924105909`. Read-only catalog queries confirmed both receipt columns, the check and unique index, both RPCs, authenticated-only execution grants, and replay before mutable validation in the corrected function. No remote write RPC or test fixture was invoked.
