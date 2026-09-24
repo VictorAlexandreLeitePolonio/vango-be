@@ -237,10 +237,11 @@ The marketplace exposes a sanitized view of published fleets filtered by city an
 
 - Identity details and date of birth;
 - Current residential street address and coordinates;
-- Optional unique `profile_id` (populated exclusively for adult students);
+- `registration_origin`: `guardian_created`, `self_created`, or `fleet_owner_created`;
+- Optional unique `profile_id` for an owner-created adult until that student creates an account;
 - Creation and update timestamps.
 
-Minor students maintain a `NULL` `profile_id`. The primary guardian controls student data. Full home addresses are disclosed to a fleet owner only when a link request is submitted.
+Guardian-created minors maintain a `NULL` `profile_id` and retain their primary guardian. Owner-created records do not create an Auth account or guardian relationship for a pre-auth contact; an owner-created adult can link a profile later without changing its registration origin. Marketplace addresses are disclosed to a fleet owner with a submitted link request; direct owner registration collects the address as part of enrollment.
 
 `student_guardians` connects minor students to guardians:
 
@@ -250,7 +251,7 @@ Minor students maintain a `NULL` `profile_id`. The primary guardian controls stu
 - Tracking and confirmation permissions;
 - Relationship status and timestamps.
 
-Every minor student has exactly one active primary guardian and can have multiple secondary guardians.
+Every guardian-managed minor has exactly one active primary guardian and can have multiple secondary guardians.
 
 ### 6.3 Link Requests, Invitations, and Enrollments
 
@@ -266,13 +267,15 @@ Every minor student has exactly one active primary guardian and can have multipl
 
 `fleet_invitations` enables fleet owners to invite known email contacts directly.
 
-`fleet_enrollments` represents an approved operational link between a fleet and a student. A student can maintain active enrollments across multiple non-conflicting fleets.
+`fleet_enrollments` represents an operational link between a fleet and a student. `source_type` is either `join_request`, paired with a request ID, or `owner_registration`, paired with a null request ID. The source is immutable. Direct owner registrations store their school and shift on the enrollment. A student can maintain active enrollments across multiple non-conflicting fleets.
+
+`fleet_student_contacts` stores pre-auth contact details for a specific enrollment, separately from `student_guardians`. A composite `(fleet_id, enrollment_id)` foreign key prevents cross-fleet association; an enrollment can have multiple contacts and at most one primary contact. Active fleet owners can read contacts for their own fleet, while clients cannot write this table directly. A pre-auth contact does not gain app access from this relationship.
 
 If no seat capacity exists, requests enter a waitlisted status. Capacity evaluates contracted vehicle seat limits, not temporary daily absences.
 
 **Approval Decision (Approved 2026-09-07 for Cycle 3):** Request approval must reserve all requested seats across target days and directions atomically. Validating capacity/conflicts, registering assignments, creating the link, and approving the request occur in the same transaction. Partial approvals or partial seat reservations are strictly prohibited.
 
-**Invitations (Approved 2026-09-07):** Accepting a fleet invitation creates a `pending` request without creating an active link or reserving capacity until owner approval.
+**Invitations (Approved 2026-09-07):** Accepting a fleet invitation creates a `pending` request without creating an active link or reserving capacity until owner approval. When the request is approved, its enrollment retains `source_type = 'join_request'`.
 
 **Waitlist & Seniority (Approved 2026-09-07):** Priority is determined by request creation timestamp. Among fully compatible pending requests, the oldest request is evaluated first.
 

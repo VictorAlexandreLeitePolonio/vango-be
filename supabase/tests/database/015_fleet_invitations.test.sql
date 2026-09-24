@@ -2,11 +2,14 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 \ir ../_helpers.psql
+\ir ../_approval.psql
 
-select plan(12);
+select plan(14);
 select pg_temp.seed_cycle_2_users();
 create temp table fleet_invitation_test_tokens(kind text primary key, token text) on commit drop;
 grant all on fleet_invitation_test_tokens to authenticated;
+create temp table fleet_invitation_test_ids(kind text primary key, id uuid) on commit drop;
+grant all on fleet_invitation_test_ids to authenticated;
 
 insert into public.fleets (id, name, slug, status, created_by)
 values ('61000000-0000-0000-0000-000000000001', 'Frota Convite', 'frota-convite', 'published', '60000000-0000-0000-0000-000000000005');
@@ -83,13 +86,40 @@ select is((select count(*)::integer from public.fleet_enrollments), 0,
   'acceptance does not create an enrollment before allocation');
 select is((select count(*)::integer from public.transport_reservations), 0,
   'acceptance does not reserve seats before approval');
+reset role;
+insert into fleet_invitation_test_ids(kind, id)
+select 'request', id
+from public.fleet_join_requests
+where student_id = (select id from public.students where full_name = 'Teste Menor Invite');
+select set_config('request.jwt.claims', '{"sub":"60000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+insert into fleet_invitation_test_ids(kind, id)
+select 'approval-schedule', pg_temp.seed_approval_schedule(
+  (select id from fleet_invitation_test_ids where kind = 'request')
+);
+set local role authenticated;
+select lives_ok(
+  $$select public.approve_transport_request(
+    (select id from fleet_invitation_test_ids where kind = 'request'),
+    jsonb_build_array(jsonb_build_object(
+      'schedule_id', (select id from fleet_invitation_test_ids where kind = 'approval-schedule'),
+      'weekday', 1
+    )), current_date + 1
+  )$$,
+  'owner approves the invitation-originated request'
+);
+reset role;
+select is(
+  (select to_jsonb(e) ->> 'source_type'
+   from public.fleet_enrollments e
+   where e.source_request_id = (select id from fleet_invitation_test_ids where kind = 'request')),
+  'join_request',
+  'approved invitation request creates a join-request enrollment'
+);
 select set_config('request.jwt.claims', '{"sub":"60000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 set local role authenticated;
 insert into fleet_invitation_test_tokens(kind, token)
 select 'cancelled', public.create_fleet_invitation('61000000-0000-0000-0000-000000000001', 'other@example.test', 'guardian');
 reset role;
-create temp table fleet_invitation_test_ids(kind text primary key, id uuid) on commit drop;
-grant all on fleet_invitation_test_ids to authenticated;
 insert into fleet_invitation_test_ids(kind, id)
 select 'cancelled', id from public.fleet_invitations where lower(email) = 'other@example.test' and status = 'pending';
 select set_config('request.jwt.claims', '{"sub":"60000000-0000-0000-0000-000000000005","role":"authenticated"}', true);

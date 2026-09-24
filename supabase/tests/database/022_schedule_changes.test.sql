@@ -3,7 +3,7 @@ create extension if not exists pgtap with schema extensions;
 \ir ../_helpers.psql
 \ir ../_planning.psql
 
-select plan(31);
+select plan(35);
 select has_function(
   'public', 'request_schedule_change', array['uuid', 'text[]', 'smallint[]'],
   'mudança de programação existe'
@@ -143,6 +143,63 @@ select throws_ok(
   )$$,
   'PGRST', null,
   'segunda mudança aberta é rejeitada'
+);
+
+insert into public.students (
+  student_type, registration_origin, full_name, birth_date, postal_code,
+  street, street_number, neighborhood, city_name, city_ibge_code, state_code,
+  created_by
+) values (
+  'minor', 'fleet_owner_created', 'PRD9 Direct Schedule Student',
+  current_date - 10 * 365, '18000000', 'Direct Student Street', '20',
+  'Centro', 'Cidade Teste', '3550000', 'SP', '40000000-0000-0000-0000-000000000001'
+);
+insert into public.fleet_enrollments (
+  fleet_id, student_id, source_type, source_request_id, school_id, shift
+) values (
+  '41000000-0000-0000-0000-000000000001',
+  (select id from public.students where full_name = 'PRD9 Direct Schedule Student'),
+  'owner_registration', null,
+  (select id from planning_ids where kind = 'school'), 'evening'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"40000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  $$select public.request_schedule_change(
+    (select id from public.fleet_enrollments
+     where student_id = (select id from public.students where full_name = 'PRD9 Direct Schedule Student')),
+    array['going']::text[], array[1]::smallint[]
+  )$$,
+  'owner can request a schedule change for a direct registration'
+);
+select is(
+  (select request_kind from public.fleet_join_requests
+   where enrollment_id = (select id from public.fleet_enrollments
+     where student_id = (select id from public.students where full_name = 'PRD9 Direct Schedule Student'))),
+  'change'::text,
+  'direct registration creates only the normal change request'
+);
+select is(
+  (select school_id from public.fleet_join_requests
+   where enrollment_id = (select id from public.fleet_enrollments
+     where student_id = (select id from public.students where full_name = 'PRD9 Direct Schedule Student'))),
+  (select id from planning_ids where kind = 'school'),
+  'schedule change uses the direct enrollment school'
+);
+select is(
+  (select shift from public.fleet_join_requests
+   where enrollment_id = (select id from public.fleet_enrollments
+     where student_id = (select id from public.students where full_name = 'PRD9 Direct Schedule Student'))),
+  'evening'::text,
+  'schedule change uses the direct enrollment shift'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"60000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
 );
 
 insert into public.schools (

@@ -131,17 +131,17 @@ values
    '85000000-0000-0000-0000-000000000002',
    '40000000-0000-0000-0000-000000000001');
 insert into public.students (
-  id, student_type, full_name, birth_date, postal_code, street,
+  id, student_type, registration_origin, full_name, birth_date, postal_code, street,
   street_number, neighborhood, city_name, city_ibge_code, state_code, created_by
 ) values
   (
-    '86000000-0000-0000-0000-000000000001', 'minor', 'Aluno Evento A',
+    '86000000-0000-0000-0000-000000000001', 'minor', 'guardian_created', 'Aluno Evento A',
     current_date - 10 * 365, '18000000', 'Rua Aluno A', '10', 'Centro',
     'Cidade Teste', '3550000', 'SP',
     '40000000-0000-0000-0000-000000000001'
   ),
   (
-    '86000000-0000-0000-0000-000000000002', 'minor', 'Aluno Evento B',
+    '86000000-0000-0000-0000-000000000002', 'minor', 'guardian_created', 'Aluno Evento B',
     current_date - 11 * 365, '18000000', 'Rua Aluno B', '11', 'Centro',
     'Cidade Teste', '3550000', 'SP',
     '40000000-0000-0000-0000-000000000001'

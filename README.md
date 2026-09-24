@@ -50,6 +50,8 @@ Published fleets appear based on served cities and covered institutions. Public 
 
 Primary guardians create minor student profiles, while adult students create their own records. Link requests store a private snapshot of the residential address, require an active/covered school and served city, and await owner approval. Approval establishes the enrollment link within the same transaction.
 
+Fleet owners can also register a minor or adult before the student has an account. These records retain the `fleet_owner_created` origin even if an adult profile is linked later, and the direct enrollment records its school and shift without creating a join request or guardian relationship for a pre-auth contact. Contact details are stored separately with owner-only reads. Accepting a fleet invitation still creates a pending request; the enrollment is created only after approval.
+
 Owners can also invite guardians or adult students. Flutter retains the token during sign-up/login callbacks; the backend stores only the SHA-256 hash and accepts invitations only for matching confirmed emails. Secondary guardians receive derived access to the dependent's active links.
 
 Approval requires full seat allocation in the same transaction; accepting an invitation creates a pending request. New requests and schedule changes compete for seats by seniority among fully compatible entries, subject to owner acceptance or rejection.

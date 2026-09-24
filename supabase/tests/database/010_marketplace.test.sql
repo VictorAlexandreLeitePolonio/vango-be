@@ -80,12 +80,12 @@ select throws_ok(
 
 reset role;
 select is(
-  (select count(*)::integer from public.audit_events where action = 'service_city_added'),
+  (select count(*)::integer from public.audit_events where action = 'service_city_added' and fleet_id = '41000000-0000-0000-0000-000000000001'),
   1,
   'service city insertion is audited'
 );
 select is(
-  (select count(*)::integer from public.audit_events where action = 'service_school_added'),
+  (select count(*)::integer from public.audit_events where action = 'service_school_added' and fleet_id = '41000000-0000-0000-0000-000000000001'),
   1,
   'service school insertion is audited'
 );

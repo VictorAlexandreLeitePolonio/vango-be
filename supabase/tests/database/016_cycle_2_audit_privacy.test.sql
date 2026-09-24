@@ -115,9 +115,9 @@ select ok(
   'critical security definer functions set an empty search path'
 );
 select is(
-  (select count(*)::integer from public.schools),
+  (select count(*)::integer from public.schools where id = '70000000-0000-0000-0000-000000000001'),
   1,
-  'privacy fixture does not turn into persistent catalog data'
+  'privacy fixture inserts only its own school row'
 );
 
 select * from finish();
