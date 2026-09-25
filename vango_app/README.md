@@ -21,7 +21,10 @@ The VanGo mobile client for school and university transport logistics. Built wit
 - **Vans Marketplace (`VansMarketplaceScreen`):** Search and discovery of published fleet vans with capacity, license plate, school coverage, and one-tap request submission (`submit_fleet_join_request`).
 
 ### 🏢 Fleet Owner Dashboard (`FleetOwnerDashboardScreen`)
-- Multi-fleet switcher with live statistics (vans, active students, pending requests).
+- After authentication, owner fleet choices come from the current `get_my_access_context` result. One owner fleet opens directly; multiple owner fleets require an explicit selection by fleet ID; no owner fleet shows an access message.
+- The dashboard route requires a fleet ID and opening user ID, then rechecks the current session and owner membership before reading data. The user ID detects session changes and is not an authorization credential.
+- Pending requests, drivers, and enrolled students display real empty or retry states. No local sample records are used on the authenticated owner path.
+- The enrolled-student list requires the owner-scoped `list_fleet_students` RPC from Task #10. Apply that migration before using the dashboard with backend data.
 - Review and approve/reject pending student join requests via `decide_fleet_join_request`.
 
 ---

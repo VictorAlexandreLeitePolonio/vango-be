@@ -13,6 +13,9 @@ import '../../features/fleet/screens/fleet_owner_dashboard_screen.dart';
 import '../../features/student/screens/student_registration_screen.dart';
 import '../../features/student/screens/vans_marketplace_screen.dart';
 
+/// Navigation identifiers for an owner fleet and the opening session.
+typedef OwnerFleetRouteArguments = ({String fleetId, String userId});
+
 /// Named routes for the VanGo application.
 class AppRoutes {
   AppRoutes._();
@@ -40,6 +43,20 @@ class AppRoutes {
     driverRoute: (_) => const DriverRouteScreen(),
     studentRegister: (_) => const StudentRegistrationScreen(),
     vansMarketplace: (_) => const VansMarketplaceScreen(),
-    fleetDashboard: (_) => const FleetOwnerDashboardScreen(),
+    fleetDashboard: (context) {
+      final arguments = ModalRoute.of(context)?.settings.arguments;
+      if (arguments is! OwnerFleetRouteArguments ||
+          arguments.fleetId.trim().isEmpty ||
+          arguments.userId.trim().isEmpty) {
+        return const Scaffold(
+          body: Center(child: Text('Acesso à frota indisponível')),
+        );
+      }
+      return FleetOwnerDashboardScreen(
+        fleetId: arguments.fleetId,
+        userId: arguments.userId,
+        authService: authService ?? SupabaseAuthService(),
+      );
+    },
   };
 }

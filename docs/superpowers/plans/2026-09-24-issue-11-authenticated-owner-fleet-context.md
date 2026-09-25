@@ -16,7 +16,7 @@
 - Reuse the existing AuthService and access-context RPC. Add no dependency, state framework, backend migration, or RPC contract.
 - Follow RED/GREEN with affected tests during implementation. Before completion, run `dart format --output=none --set-exit-if-changed .`, `flutter analyze`, and `flutter test --coverage` in `vango_app`; check at least 80% business/domain logic coverage.
 - Do not edit Task #10, #12, or #13 behavior beyond the owner dashboard calls required here. Keep the existing Task #10 stash untouched.
-- Review `CONTRIBUTING.md` and the spec before code changes. Keep commits scoped to each task.
+- Review `CONTRIBUTING.md` and the spec before code changes. Keep changes scoped to each task. Do not commit or push without explicit user authorization.
 
 ## File map
 
@@ -85,7 +85,7 @@
   ```
 
 - [ ] **Step 4: Confirm GREEN.** Rerun the focused model test; expect PASS. Add the zero-owner case with `accountRoles: {AccountRole.owner}` and empty `fleetAccess`; expect `ownerFleetIds` to be empty.
-- [ ] **Step 5: Commit.** `git add` only the model and its test; commit as `feat(flutter): derive owner fleet IDs from access context`.
+- [ ] **Step 5: Review.** Inspect `git diff` only for the Task 1 model and test; leave the changes uncommitted.
 
 ### Task 2: Home selection and route arguments
 
@@ -100,7 +100,7 @@
 - Consumes: `AccessContext.ownerFleetIds`, `AuthService.currentSession`.
 - Produces: `typedef OwnerFleetRouteArguments = ({String fleetId, String userId});` in `app_routes.dart`; the home screen passes this record via `Navigator.pushNamed`.
 
-- [ ] **Step 1: Write failing widget tests.** Extend the existing `_context` helper to accept `List<FleetAccess> fleetAccess`. Assert that no owner access shows a Portuguese access message and no management button, one owner fleet enables the button, and two unordered owner fleets yield sorted selector options. Capture `RouteSettings.arguments` with a test `onGenerateRoute` to assert `(fleetId: 'fleet-b', userId: 'user-1')` after choosing `fleet-b`:
+- [ ] **Step 1: Write failing widget tests.** Extend the existing `_context` helper to accept `List<FleetAccess> fleetAccess`. Assert that no owner access shows a Portuguese access message and no management button. With exactly `['fleet-a']`, assert no selector, an enabled management button, and navigation arguments `(fleetId: 'fleet-a', userId: 'user-1')` for the current user. Two unordered owner fleets must yield sorted selector options. Capture `RouteSettings.arguments` with a test `onGenerateRoute` to assert `(fleetId: 'fleet-b', userId: 'user-1')` after choosing `fleet-b`:
 
   ```dart
   expect(find.byType(DropdownButton<String>), findsOneWidget);
@@ -125,7 +125,7 @@
   ```
 
 - [ ] **Step 4: Confirm GREEN.** Rerun the two focused widget test files. Confirm the recorded navigation arguments match the chosen fleet and current session user.
-- [ ] **Step 5: Commit.** Stage only these three production files and two tests; commit as `feat(flutter): select owner fleet from access context`.
+- [ ] **Step 5: Review.** Inspect `git diff` only for the Task 2 production files and tests; leave the changes uncommitted.
 
 ### Task 3: Independent dashboard guard
 
@@ -138,6 +138,7 @@
 **Interfaces:**
 - Consumes: `OwnerFleetRouteArguments`, `AuthService.currentSession`, `AuthService.authStateChanges`, and `AuthService.getMyAccessContext()`.
 - Produces: `FleetOwnerDashboardScreen({required String fleetId, required String userId, required AuthService authService, FleetService? fleetService})` with no default fleet ID.
+- The route `userId` is only a session-change identifier, never a credential. The guard compares it with `AuthService.currentSession` and verifies the fleet's owner role in a freshly loaded `AccessContext` before each owner read.
 
 - [ ] **Step 1: Write failing guard tests.** Replace the dashboard test's default constructor with explicit fleet/user/auth service arguments and a local `FleetService` subclass that records reads. Test named route entry with no arguments or blank IDs: expect the access state and zero reads. Test a matching user but no owner membership: expect the same. Test an owner membership: the dashboard reads only after the context future completes. Open the route, then emit `signedOut` and `signedIn` for another user; expect old data to disappear. Complete an old read after switching accounts and assert it stays hidden. Add a case where a refreshed context removes the owner role.
 
@@ -177,7 +178,7 @@
   ```
 
 - [ ] **Step 4: Confirm GREEN.** Rerun the focused dashboard/auth tests. Check both `signedOut` and direct `signedIn` account switch while the route remains on top.
-- [ ] **Step 5: Commit.** Stage only the route, dashboard, and their tests; commit as `fix(flutter): guard owner dashboard by session and fleet`.
+- [ ] **Step 5: Review.** Inspect `git diff` only for the Task 3 production files and tests; leave the changes uncommitted.
 
 ### Task 4: Truthful owner data, documentation, and final gate
 
@@ -190,7 +191,7 @@
 
 **Interfaces:**
 - Consumes: the guarded dashboard's selected `fleetId` and existing `FleetService` owner methods.
-- Produces: real empty results or propagated errors from `getPendingRequests`, `getFleetDrivers`, `getEnrolledStudents`, and `decideRequest`; dashboard error/retry and mutation failure feedback.
+- Produces: real empty results or propagated errors from `getPendingRequests`, `getFleetDrivers`, `getOwnerEnrolledStudents`, and `decideRequest`; dashboard error/retry and mutation failure feedback. Keep `getEnrolledStudents` behavior for its driver route caller. The owner student list uses the `list_fleet_students` RPC from Task #10, whose migration must be available before this screen is used.
 
 - [ ] **Step 1: Write failing tests.** Use a `FleetService` test double in the dashboard widget test: return empty lists and assert true empty states with no seeded names; throw from a read and assert a Portuguese error plus retry; throw from `decideRequest` and assert no success message. In the unit test, assert unauthenticated/no-client owner reads and decision calls fail instead of returning sample data:
 
@@ -198,14 +199,14 @@
   final service = FleetService();
   await expectLater(service.getPendingRequests('fleet-a'), throwsStateError);
   await expectLater(service.getFleetDrivers('fleet-a'), throwsStateError);
-  await expectLater(service.getEnrolledStudents('fleet-a'), throwsStateError);
+  await expectLater(service.getOwnerEnrolledStudents('fleet-a'), throwsStateError);
   await expectLater(service.decideRequest('request-a', true), throwsStateError);
   ```
 
   Replace the old unit/widget assertions that require `Carlos` and other local sample records with tests for the actual return/error contract. Preserve focused coverage of approve/reject behavior through an explicit test double.
 
 - [ ] **Step 2: Confirm RED.** Run `flutter test test/unit/features/fleet/fleet_service_test.dart test/widget/features/fleet/fleet_owner_dashboard_screen_test.dart`; expect the new error assertions to fail.
-- [ ] **Step 3: Implement truthful states.** For the four owner methods, throw `StateError` when there is no authenticated client. Let RPC/query failures propagate, including invalid response shape, rather than returning `[]`. Remove the local sample return path and local approval mutation from these methods; preserve unrelated service APIs. In the dashboard, catch read failures to show a retry state, and catch decision failures to show a Portuguese error without success or local mutation. Clear prior lists before each load and keep the Task 3 request counter check. Update `vango_app/README.md` to describe owner selection and access requirements, correcting its existing claim that the dashboard already has a multi-fleet switcher.
+- [ ] **Step 3: Implement truthful states.** For the four owner methods, throw `StateError` when there is no authenticated client. Let RPC/query failures propagate, including invalid response shape, rather than returning `[]`. Use Task #10's owner-scoped `list_fleet_students` RPC for the owner list; do not query `students` through guardian/student RLS or invent coordinates absent from the RPC. Preserve the existing `getEnrolledStudents` behavior for `DriverRouteService`. Remove the local sample return path and local approval mutation from owner methods; preserve unrelated service APIs. In the dashboard, catch read failures to show a retry state, and catch decision failures to show a Portuguese error without success or local mutation. Clear prior lists before each load and keep the Task 3 request counter check. Update `vango_app/README.md` to describe owner selection and access requirements, correcting its existing claim that the dashboard already has a multi-fleet switcher.
 
   ```dart
   final client = _client;
@@ -223,7 +224,7 @@
   flutter test --coverage
   ```
 
-- [ ] **Step 6: Run the repository quality gate and commit.** Verify `git status` before and after the `software-quality-gate` skill; its tooling must remain outside the repo and must not modify dependencies, lockfiles, tests, or configuration. Commit only Task 4 code, focused tests, and README as `fix(flutter): surface owner fleet data errors` after all gates pass. Do not push, merge, or deploy as part of this plan without a separate request.
+- [ ] **Step 6: Run the repository quality gate and review.** Verify `git status` before and after the `software-quality-gate` skill; its tooling must remain outside the repo and must not modify dependencies, lockfiles, tests, or configuration. Inspect the final scoped diff. Do not commit, push, merge, or deploy without explicit user authorization.
 
 ## Completion check
 

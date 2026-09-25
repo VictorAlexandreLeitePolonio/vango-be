@@ -1,18 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../auth/services/auth_service.dart';
 import '../services/fleet_service.dart';
 
+/// Owner dashboard bound to a fleet and the session that opened the route.
 class FleetOwnerDashboardScreen extends StatefulWidget {
   const FleetOwnerDashboardScreen({
     super.key,
     this.fleetService,
-    this.fleetId = '51000000-0000-0000-0000-000000000001',
+    required this.fleetId,
+    required this.userId,
+    required this.authService,
   });
 
   final FleetService? fleetService;
   final String fleetId;
+  final String userId;
+  final AuthService authService;
 
   @override
   State<FleetOwnerDashboardScreen> createState() =>
@@ -23,32 +32,119 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
     with SingleTickerProviderStateMixin {
   late final FleetService _fleetService;
   late final TabController _tabController;
+  StreamSubscription<AuthState>? _authSubscription;
+  int _requestId = 0;
 
   List<PendingJoinRequest> _pendingRequests = [];
   List<FleetMemberDriver> _drivers = [];
-  List<EnrolledStudentItem> _enrolledStudents = [];
+  List<OwnerEnrolledStudent> _enrolledStudents = [];
   bool _isLoading = true;
+  bool _isDenied = false;
+  bool _hasError = false;
 
   @override
   void initState() {
     super.initState();
     _fleetService = widget.fleetService ?? FleetService();
     _tabController = TabController(length: 3, vsync: this);
-    _loadData();
+    _subscribeToAuth();
+    unawaited(_checkAccess());
+  }
+
+  void _subscribeToAuth() {
+    _authSubscription = widget.authService.authStateChanges.listen((state) {
+      if (state.event == AuthChangeEvent.signedOut ||
+          state.session?.user.id != widget.userId) {
+        _denyAccess();
+      } else {
+        unawaited(_checkAccess());
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant FleetOwnerDashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.authService != widget.authService) {
+      _authSubscription?.cancel();
+      _subscribeToAuth();
+    }
+    if (oldWidget.fleetId != widget.fleetId ||
+        oldWidget.userId != widget.userId ||
+        oldWidget.authService != widget.authService) {
+      unawaited(_checkAccess());
+    }
   }
 
   @override
   void dispose() {
+    _requestId += 1;
+    _authSubscription?.cancel();
     _tabController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    final requests = await _fleetService.getPendingRequests(widget.fleetId);
-    final drivers = await _fleetService.getFleetDrivers(widget.fleetId);
-    final enrolled = await _fleetService.getEnrolledStudents(widget.fleetId);
+  void _clearData() {
+    _pendingRequests = [];
+    _drivers = [];
+    _enrolledStudents = [];
+  }
+
+  void _denyAccess() {
+    _requestId += 1;
     if (!mounted) return;
+    setState(() {
+      _clearData();
+      _isLoading = false;
+      _isDenied = true;
+      _hasError = false;
+    });
+  }
+
+  bool _isCurrent(int requestId) =>
+      mounted &&
+      requestId == _requestId &&
+      widget.authService.currentSession?.user.id == widget.userId;
+
+  Future<void> _checkAccess() async {
+    final requestId = ++_requestId;
+    if (widget.authService.currentSession?.user.id != widget.userId) {
+      _denyAccess();
+      return;
+    }
+    setState(() {
+      _clearData();
+      _isLoading = true;
+      _isDenied = false;
+      _hasError = false;
+    });
+    try {
+      final access = await widget.authService.getMyAccessContext();
+      if (!_isCurrent(requestId)) return;
+      if (!access.ownerFleetIds.contains(widget.fleetId)) {
+        _denyAccess();
+        return;
+      }
+      await _loadData(requestId);
+    } catch (_) {
+      if (!_isCurrent(requestId)) return;
+      setState(() {
+        _clearData();
+        _isLoading = false;
+        _hasError = true;
+      });
+    }
+  }
+
+  Future<void> _loadData(int requestId) async {
+    final requests = await _fleetService.getPendingRequests(widget.fleetId);
+    if (!_isCurrent(requestId)) return;
+    final drivers = await _fleetService.getFleetDrivers(widget.fleetId);
+    if (!_isCurrent(requestId)) return;
+    final enrolled = await _fleetService.getOwnerEnrolledStudents(
+      widget.fleetId,
+    );
+    if (!_isCurrent(requestId)) return;
     setState(() {
       _pendingRequests = requests;
       _drivers = drivers;
@@ -58,22 +154,67 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
   }
 
   Future<void> _handleDecision(String requestId, bool approve) async {
-    await _fleetService.decideRequest(requestId, approve);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(approve
-            ? 'Aluno aprovado e adicionado à frota!'
-            : 'Solicitação recusada.'),
-        backgroundColor: approve ? AppColors.successGreen : AppColors.errorRed,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    _loadData();
+    final requestIdAtStart = _requestId;
+    if (!_isCurrent(requestIdAtStart) || _isDenied) return;
+    try {
+      final access = await widget.authService.getMyAccessContext();
+      if (!_isCurrent(requestIdAtStart)) return;
+      if (!access.ownerFleetIds.contains(widget.fleetId)) {
+        _denyAccess();
+        return;
+      }
+      await _fleetService.decideRequest(requestId, approve);
+      if (!_isCurrent(requestIdAtStart)) return;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            approve
+                ? 'Aluno aprovado e adicionado à frota!'
+                : 'Solicitação recusada.',
+          ),
+          backgroundColor: approve
+              ? AppColors.successGreen
+              : AppColors.errorRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      unawaited(_checkAccess());
+    } catch (_) {
+      if (!_isCurrent(requestIdAtStart)) return;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível atualizar a solicitação'),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isDenied) {
+      return const Scaffold(
+        body: Center(child: Text('Acesso à frota indisponível')),
+      );
+    }
+    if (_hasError) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Não foi possível carregar a frota'),
+              ElevatedButton(
+                onPressed: _checkAccess,
+                child: const Text('Tentar novamente'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: AppColors.backgroundWhite,
       appBar: AppBar(
@@ -90,7 +231,7 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
               icon: const Icon(Icons.notifications_active_outlined, size: 20),
             ),
             const Tab(
-              text: 'Vans & Equipe',
+              text: 'Equipe',
               icon: Icon(Icons.directions_bus_outlined, size: 20),
             ),
             Tab(
@@ -123,7 +264,11 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.check_circle_outline_rounded, size: 48, color: AppColors.successGreen),
+              Icon(
+                Icons.check_circle_outline_rounded,
+                size: 48,
+                color: AppColors.successGreen,
+              ),
               SizedBox(height: 12),
               Text(
                 'Nenhuma solicitação pendente no momento.',
@@ -168,7 +313,10 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
                     style: AppTextStyles.heading3.copyWith(fontSize: 17),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primaryGold.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
@@ -187,12 +335,18 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
 
               Row(
                 children: [
-                  const Icon(Icons.location_on_outlined, size: 16, color: AppColors.textMuted),
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 16,
+                    color: AppColors.textMuted,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       req.fullAddress,
-                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ),
                 ],
@@ -201,12 +355,18 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
 
               Row(
                 children: [
-                  const Icon(Icons.school_outlined, size: 16, color: AppColors.textMuted),
+                  const Icon(
+                    Icons.school_outlined,
+                    size: 16,
+                    color: AppColors.textMuted,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       'Destino: ${req.schoolName}',
-                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.textDark),
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textDark,
+                      ),
                     ),
                   ),
                 ],
@@ -244,7 +404,10 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
                       ),
                       child: const Text(
                         'Aprovar Entrada',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -261,31 +424,6 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text('Vans Cadastradas', style: AppTextStyles.heading3),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.inputBorder),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.airport_shuttle_rounded, size: 32, color: AppColors.primaryOrange),
-              SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Van 01 - Zona Sul', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text('Mercedes-Benz Sprinter • Placa BRA-2E19', style: TextStyle(color: AppColors.textMuted)),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
         Text('Motoristas Vinculados', style: AppTextStyles.heading3),
         const SizedBox(height: 10),
         ..._drivers.map((driver) {
@@ -307,9 +445,25 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(driver.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text(driver.email, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                    Text(driver.status, style: const TextStyle(color: AppColors.successGreen, fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(
+                      driver.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      driver.email,
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      driver.status,
+                      style: const TextStyle(
+                        color: AppColors.successGreen,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -328,7 +482,11 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.people_outline_rounded, size: 48, color: AppColors.textMuted),
+              Icon(
+                Icons.people_outline_rounded,
+                size: 48,
+                color: AppColors.textMuted,
+              ),
               SizedBox(height: 12),
               Text(
                 'Nenhum aluno matriculado na frota ainda.',
@@ -356,16 +514,36 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.15),
-                child: Text('${index + 1}', style: const TextStyle(color: AppColors.primaryOrangeDark, fontWeight: FontWeight.bold)),
+                backgroundColor: AppColors.primaryOrange.withValues(
+                  alpha: 0.15,
+                ),
+                child: Text(
+                  '${index + 1}',
+                  style: const TextStyle(
+                    color: AppColors.primaryOrangeDark,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(st.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    Text(st.address, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                    Text(
+                      st.fullName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      st.address,
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ),
