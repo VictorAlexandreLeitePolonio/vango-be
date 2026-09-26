@@ -26,12 +26,12 @@ begin
   select * into v_minor from public.create_fleet_managed_student(
     '41000000-0000-0000-0000-000000000001','91000000-0000-4000-8000-000000000016',
     'minor','Fleet Transport Minor', current_date - 3650, '18000000','Main Street','10',
-    null,'Center','Test City','3550000','SP',-23.5,-46.6,
+    null,'Center','Cidade Teste','3550000','SP',-23.5,-46.6,
     (select id from planning_ids where kind='school'),'morning','Contact','contact@example.com',null);
   select * into v_adult from public.create_fleet_managed_student(
     '41000000-0000-0000-0000-000000000001','91000000-0000-4000-8000-000000000017',
     'adult','Fleet Transport Adult', current_date - 10000, '18000000','Main Street','11',
-    null,'Center','Test City','3550000','SP',-23.5,-46.6,
+    null,'Center','Cidade Teste','3550000','SP',-23.5,-46.6,
     (select id from planning_ids where kind='school'),'morning','Adult Contact','adult@example.com',null);
   create temp table transport_case on commit drop as select
     '41000000-0000-0000-0000-000000000001'::uuid fleet_id,

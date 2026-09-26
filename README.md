@@ -216,3 +216,63 @@ restoration. It creates random isolated databases, observes actual advisory wait
 and drops only databases created by its invocation. Cron is excluded from those copies.
 Use a dedicated local Supabase stack; never point tests at a shared or remote database.
 No remote migration rollout is implied by commit/push.
+
+## Owner fleet planning (#17)
+
+Owners open **Planejamento da frota** from their fleet dashboard. Coverage, vehicle,
+route and recurring-schedule forms save independently. Endpoints require explicit
+map confirmation or an explicitly selected published institution. Enabling the
+owner as a driver is a separate action and preserves enrollment-derived roles.
+This flow does not allocate students or generate trips.
+
+Revision-aware overloads retain the legacy argument sets and add required
+`p_command_id uuid` and `p_expected_revision bigint` to `save_van`, `save_route`
+and `save_route_schedule`. Creation sends both the entity ID and expected revision
+as explicit nulls; edits send the opened entity ID and revision. Each command
+atomically persists domain changes, existing audit events and a private immutable
+receipt. Exact retries return the original result without repeating side effects;
+changed input returns `idempotency_conflict`; stale edits return `revision_conflict`.
+
+The owner projection adds coverage, active driver labels, owner operator status,
+edit revisions, route endpoints and ordered institution references. Existing
+fields remain intact; driver projections retain the previous contract. Flutter
+validates known response fields strictly and tolerates additive unknown fields.
+Uncertain writes retain their immutable command; a read failure after commit only
+retries the read. Session/fleet changes invalidate the previous controller.
+
+### Catalog prerequisite
+
+`catalog_municipalities` holds administratively sourced SP municipality metadata.
+`private.school_publications` binds evidence and verification time to the current
+institution fingerprint. Active institutions require finite coordinates and a
+matching municipality; changed institution data requires renewed publication.
+Owners can only link published schools/campuses after linking their municipality.
+All coverage writes enforce the invariants in PostgreSQL, including direct writes.
+Only administrators may populate publication evidence; there is no client curation
+endpoint. Client execution grants are explicit per RPC signature, and private
+helpers/receipts are not client-accessible.
+
+The seed and automated tests contain **synthetic local data only**. No statewide
+INEP/e-MEC dataset was imported or validated by #17. Production availability across
+SP, including the interior, depends on the separately specified catalog acquisition
+and publication process. No production migration or deployment is part of this
+branch delivery; no new runtime environment variable or dependency was added.
+
+### Additional local verification
+
+Use an owned disposable Supabase stack, never the shared development database.
+The live HTTP harness requires API port 56321, PostgreSQL port 56322 and a freshly
+seeded database with no other task fixtures. Store `supabase status -o json` outside
+the repository, keep it private, and point `VANGO_TEST_STATUS` to that file.
+
+- Run the existing database test runner and the new `052`–`055` pgTAP suites.
+- With local `PG*` settings, run `python3 supabase/tests/concurrency/fleet_planning.py`.
+  It creates/drops invocation-owned database copies and observes real lock waits.
+- On the clean owned baseline, run `python3 supabase/tests/http/fleet_planning.py`.
+  This leaves its synthetic fixtures for the native client test; reset only the
+  owned stack before repeating it or running the database suite again.
+- From `vango_app`, run `flutter test --no-pub --dart-define=VANGO_TEST_STATUS=/absolute/external/status.json test/integration/fleet_planning_test.dart`.
+  This uses real Auth/PostgREST to save, replay and reopen persisted configuration.
+  The normal unit/widget suite skips this opt-in network test.
+- Run `flutter test --no-pub --coverage`, `flutter analyze --no-pub`, and
+  `dart format --output=none --set-exit-if-changed .` from `vango_app`.

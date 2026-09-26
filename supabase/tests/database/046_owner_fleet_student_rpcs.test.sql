@@ -16,8 +16,6 @@ select ok(not has_function_privilege('anon', 'public.create_fleet_managed_studen
 
 select pg_temp.seed_cycle_2_users();
 select pg_temp.seed_foundation();
-insert into public.fleet_service_cities(fleet_id, city_ibge_code, city_name, state_code, created_by)
-values ('41000000-0000-0000-0000-000000000001', '3550000', 'Test City', 'SP', '40000000-0000-0000-0000-000000000001');
 insert into public.schools (
   id, provider, external_id, institution_type, name, postal_code, street,
   street_number, neighborhood, city_name, city_ibge_code, state_code
@@ -25,6 +23,8 @@ insert into public.schools (
   '63000000-0000-0000-0000-000000000010', 'inep', 'prd10-school', 'school',
   'PRD10 School', '18000000', 'Main Street', '1', 'Center', 'Test City', '3550000', 'SP'
 );
+insert into public.fleet_service_cities(fleet_id, city_ibge_code, city_name, state_code, created_by)
+values ('41000000-0000-0000-0000-000000000001', '3550000', 'Test City', 'SP', '40000000-0000-0000-0000-000000000001');
 insert into public.fleet_service_schools(fleet_id, school_id, created_by)
 values ('41000000-0000-0000-0000-000000000001', '63000000-0000-0000-0000-000000000010', '40000000-0000-0000-0000-000000000001');
 create temp table prd10_result(student_id uuid, enrollment_id uuid) on commit drop;
@@ -231,14 +231,12 @@ select throws_ok($$insert into public.fleet_enrollments(fleet_id,student_id,sour
   '63000000-0000-0000-0000-000000000010','morning',
   '90000000-0000-0000-0000-000000000010',extensions.digest('duplicate', 'sha256'))$$,
   '23505', null, 'same-fleet command receipt is unique');
-delete from public.fleet_service_schools
-where fleet_id = '41000000-0000-0000-0000-000000000001'
-  and school_id = '63000000-0000-0000-0000-000000000010';
+update public.schools set status='inactive' where id='63000000-0000-0000-0000-000000000010';
 set local role authenticated;
 select is(
   (select student_id from pg_temp.register_prd10('90000000-0000-0000-0000-000000000010')),
   (select student_id from prd10_result),
-  'replay succeeds after school coverage is removed'
+  'replay succeeds after school becomes inactive'
 );
 select * from finish();
 rollback;

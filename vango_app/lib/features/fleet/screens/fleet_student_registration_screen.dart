@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math';
+import '../models/fleet_command_id.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/fleet_student_registration.dart';
@@ -359,17 +359,6 @@ class _FleetStudentRegistrationScreenState
     );
   }
 
-  String _commandId() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    final hex = bytes
-        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-        .join();
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
-  }
-
   Future<void> _submit() async {
     if (_dispatching ||
         _denied ||
@@ -409,7 +398,7 @@ class _FleetStudentRegistrationScreenState
       }
       if (!(retry
           ? _submission.retry()
-          : _submission.begin(_commandId(), draft!))) {
+          : _submission.begin(createFleetCommandId(), draft!))) {
         return;
       }
       dispatched = true;

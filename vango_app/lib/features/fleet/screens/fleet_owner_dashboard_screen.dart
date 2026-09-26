@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../auth/services/auth_service.dart';
 import '../services/fleet_service.dart';
@@ -312,6 +313,17 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
       backgroundColor: AppColors.backgroundWhite,
       appBar: AppBar(
         title: const Text('Gestão da Frota'),
+        actions: [
+          IconButton(
+            tooltip: 'Planejamento da frota',
+            onPressed: () => Navigator.pushNamed(
+              context,
+              AppRoutes.fleetPlanning,
+              arguments: (fleetId: widget.fleetId, userId: widget.userId),
+            ),
+            icon: const Icon(Icons.route_outlined),
+          ),
+        ],
         backgroundColor: Colors.transparent,
         bottom: TabBar(
           controller: _tabController,

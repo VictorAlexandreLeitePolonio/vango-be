@@ -217,6 +217,14 @@ insert into public.schools (
   'Paraíso', 'São Paulo', '3550308', 'SP', -23.5745, -46.6405, 'active'
 ) on conflict (id) do nothing;
 
+-- Synthetic local publication; never evidence for the production catalog.
+insert into public.catalog_municipalities (city_ibge_code, city_name, state_code, source_reference)
+values ('3550308', 'São Paulo', 'SP', 'Synthetic local demo only');
+insert into private.school_publications (school_id, school_fingerprint, evidence_reference, verified_at)
+values ('60000000-0000-0000-0000-000000000001',
+  private.school_publication_fingerprint('60000000-0000-0000-0000-000000000001'),
+  'Synthetic local demo only', now());
+
 insert into public.fleet_service_cities (fleet_id, city_ibge_code, city_name, state_code, created_by)
 values (
   '51000000-0000-0000-0000-000000000001', '3550308', 'São Paulo', 'SP',

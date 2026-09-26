@@ -6,13 +6,15 @@ select pg_temp.seed_cycle_2_users();
 select pg_temp.seed_foundation();
 insert into public.schools(id,provider,external_id,institution_type,name,postal_code,street,street_number,neighborhood,city_name,city_ibge_code,state_code,status)
 values
-('63000000-0000-0000-0000-000000000021','inep','coverage-a','school','alpha','18000000','Main','1','Center','Other City','3550308','SP','active'),
-('63000000-0000-0000-0000-000000000022','inep','coverage-b','school','Alpha','18000000','Main','1','Center','Other City','3550308','SP','active'),
-('63000000-0000-0000-0000-000000000023','inep','coverage-c','school','Inactive','18000000','Main','1','Center','Other City','3550308','SP','inactive'),
-('63000000-0000-0000-0000-000000000024','inep','coverage-d','school','Uncovered','18000000','Main','1','Center','Other City','3550308','SP','active');
+('63000000-0000-0000-0000-000000000021','inep','coverage-a','school','alpha','18000000','Main','1','Center','São Paulo','3550308','SP','active'),
+('63000000-0000-0000-0000-000000000022','inep','coverage-b','school','Alpha','18000000','Main','1','Center','São Paulo','3550308','SP','active'),
+('63000000-0000-0000-0000-000000000023','inep','coverage-c','school','Inactive','18000000','Main','1','Center','São Paulo','3550308','SP','active'),
+('63000000-0000-0000-0000-000000000024','inep','coverage-d','school','Uncovered','18000000','Main','1','Center','São Paulo','3550308','SP','active');
+insert into public.fleet_service_cities(fleet_id,city_ibge_code,city_name,state_code,created_by) values ('41000000-0000-0000-0000-000000000001','3550308','São Paulo','SP','40000000-0000-0000-0000-000000000001');
 insert into public.fleet_service_schools(fleet_id,school_id,created_by)
 select '41000000-0000-0000-0000-000000000001', id, '40000000-0000-0000-0000-000000000001'
 from public.schools where external_id in ('coverage-a','coverage-b','coverage-c');
+update public.schools set status='inactive' where external_id='coverage-c';
 create function pg_temp.coverage_error(p_sql text) returns text language plpgsql as $$
 begin
  execute p_sql;
@@ -38,9 +40,10 @@ select set_config('request.jwt.claims','{"sub":"60000000-0000-0000-0000-00000000
 select is(pg_temp.coverage_error($$select * from public.list_fleet_service_schools('41000000-0000-0000-0000-000000000001')$$),'email_unverified','unconfirmed user cannot read options');
 reset role;
 select ok(not has_function_privilege('anon','public.list_fleet_service_schools(uuid)','EXECUTE'),'anonymous has no execute privilege');
+insert into public.catalog_municipalities values('3550000','Test City','SP','Synthetic fixture'),('3550407','Other City','SP','Synthetic fixture');
 insert into public.fleet_service_cities(fleet_id,city_ibge_code,city_name,state_code,created_by) values
 ('41000000-0000-0000-0000-000000000001','3550000','Test City','SP','40000000-0000-0000-0000-000000000001'),
-('41000000-0000-0000-0000-000000000002','3550308','Other City','SP','40000000-0000-0000-0000-000000000005');
+('41000000-0000-0000-0000-000000000002','3550407','Other City','SP','40000000-0000-0000-0000-000000000005');
 create function pg_temp.register_coverage(p_command uuid default '92000000-0000-0000-0000-000000000001',p_city text default 'Test City',p_ibge text default '3550000',p_state text default 'SP')
 returns table(student_id uuid,enrollment_id uuid) language sql as $$
 select * from public.create_fleet_managed_student('41000000-0000-0000-0000-000000000001',p_command,'minor','Coverage Student','2015-01-01','18000000','Main','1',null,'Center',p_city,p_ibge,p_state,-23.5,-47.5,'63000000-0000-0000-0000-000000000021','morning','Contact','contact@example.test',null);
@@ -52,7 +55,7 @@ create temp table coverage_counts as select
 (select count(*) from public.audit_events where action='fleet_student_registered') audits;
 select set_config('request.jwt.claims','{"sub":"40000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
-select is(pg_temp.coverage_error($$select * from pg_temp.register_coverage(p_city=>'Other City',p_ibge=>'3550308')$$),'invalid_input','city covered only by another fleet is rejected');
+select is(pg_temp.coverage_error($$select * from pg_temp.register_coverage(p_city=>'Other City',p_ibge=>'3550407')$$),'invalid_input','city covered only by another fleet is rejected');
 reset role;
 select is((select count(*) from public.students),(select students from coverage_counts),'rejection creates no student');
 select is((select count(*) from public.fleet_enrollments),(select enrollments from coverage_counts),'rejection creates no enrollment');
@@ -74,15 +77,15 @@ select is((select student_id from pg_temp.register_coverage(p_city=>'  Test City
 select is(pg_temp.coverage_error($$select * from pg_temp.register_coverage(p_city=>'test city')$$),'idempotency_conflict','city case changes preserve the original payload hash contract');
 select lives_ok($$select * from pg_temp.register_coverage('92000000-0000-0000-0000-000000000002',p_city=>'  test CITY  ')$$,'new city comparison trims and folds case');
 reset role;
-delete from public.fleet_service_cities where fleet_id='41000000-0000-0000-0000-000000000001';
+delete from public.fleet_service_cities where fleet_id='41000000-0000-0000-0000-000000000001' and city_ibge_code='3550000';
 set local role authenticated;
 select is(pg_temp.coverage_error($$select * from pg_temp.register_coverage('92000000-0000-0000-0000-000000000003')$$),'invalid_input','new command fails after city coverage removal');
 select is((select student_id from pg_temp.register_coverage()),(select student_id from coverage_receipt),'replay succeeds after city coverage removal');
 reset role;
-delete from public.fleet_service_schools where fleet_id='41000000-0000-0000-0000-000000000001';
+update public.schools set status='inactive' where id in(select school_id from public.fleet_service_schools where fleet_id='41000000-0000-0000-0000-000000000001');
 set local role authenticated;
-select is((select count(*)::integer from public.list_fleet_service_schools('41000000-0000-0000-0000-000000000001')),0,'authorized owner receives empty options after coverage removal');
-select is((select student_id from pg_temp.register_coverage()),(select student_id from coverage_receipt),'replay succeeds after school coverage removal');
+select is((select count(*)::integer from public.list_fleet_service_schools('41000000-0000-0000-0000-000000000001')),0,'authorized owner receives empty options after school inactivity');
+select is((select student_id from pg_temp.register_coverage()),(select student_id from coverage_receipt),'replay succeeds after school inactivity');
 reset role;
 update public.fleet_enrollments set status='ended',ended_at=now(),ended_by='40000000-0000-0000-0000-000000000001',end_reason='Coverage test' where id=(select enrollment_id from coverage_receipt);
 set local role authenticated;

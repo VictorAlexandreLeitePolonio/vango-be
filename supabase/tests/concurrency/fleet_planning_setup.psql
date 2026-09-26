@@ -1,0 +1,12 @@
+begin;
+\ir ../_fleet_planning.psql
+select pg_temp.seed_fleet_transport();
+select row_to_json(c)::text as fixture from transport_case c \gset
+select pg_temp.route_config((select id from planning_ids where kind='going-route'))::text as route_config \gset
+select (select id from planning_ids where kind='van')::text as van_id \gset
+select (select id from planning_ids where kind='going-route')::text as route_id \gset
+commit;
+\echo FIXTURE :fixture
+\echo CONFIG :route_config
+\echo VAN :van_id
+\echo ROUTE :route_id

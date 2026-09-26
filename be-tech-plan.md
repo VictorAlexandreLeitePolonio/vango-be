@@ -593,3 +593,14 @@ restoration. It creates random isolated databases, observes actual advisory wait
 and drops only databases created by its invocation. Cron is excluded from those copies.
 Use a dedicated local Supabase stack; never point tests at a shared or remote database.
 No remote migration rollout is implied by commit/push.
+
+## Owner planning (#17)
+
+The fleet dashboard now opens independent coverage, vehicle, route and schedule
+forms. Commands use immutable UUIDs and edit revisions; uncertain writes retry
+the captured command, and post-commit refresh failures only retry reads. Map
+endpoints require explicit confirmation. Institutions require published evidence
+and validated coordinates; statewide real catalog acquisition remains separate.
+See the repository README's **Owner fleet planning (#17)** section for the exact
+RPC additions, publication prerequisite, local HTTP/native integration commands
+and release boundaries. No new runtime dependency or environment key is required.

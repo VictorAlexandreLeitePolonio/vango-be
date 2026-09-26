@@ -50,7 +50,7 @@ select public.apply_trip_route_result(o.trip_id,:calculation_revision::bigint,
 update public.schools set latitude=-23.5,longitude=-46.6 where id=(select id from planning_ids where kind='school');
 create temp table added_student as select * from public.create_fleet_managed_student(
  '41000000-0000-0000-0000-000000000001','95000000-0000-4000-8000-000000000016',
- 'minor','Added After Calculation',current_date-3650,'18000000','Street','10',null,'Center','Test City','3550000','SP',-23.5,-46.6,
+ 'minor','Added After Calculation',current_date-3650,'18000000','Street','10',null,'Center','Cidade Teste','3550000','SP',-23.5,-46.6,
  (select id from planning_ids where kind='school'),'morning','Contact','test@example.com',null);
 select * from public.assign_fleet_student_transport((select enrollment_id from added_student),
  (select id from planning_ids where kind='school'),jsonb_build_array(jsonb_build_object(

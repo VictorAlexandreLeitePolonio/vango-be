@@ -122,6 +122,7 @@ insert into public.schools (
     'school', 'Escola Eventos B', '18000000', 'Rua Escola B', '2', 'Centro',
     'Cidade Teste', '3550000', 'SP'
   );
+insert into public.fleet_service_cities(fleet_id,city_ibge_code,city_name,state_code,created_by) values ('41000000-0000-0000-0000-000000000001','3550000','Cidade Teste','SP','40000000-0000-0000-0000-000000000001');
 insert into public.fleet_service_schools (fleet_id, school_id, created_by)
 values
   ('41000000-0000-0000-0000-000000000001',

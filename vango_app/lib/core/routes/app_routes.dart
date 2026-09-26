@@ -10,6 +10,7 @@ import '../../features/auth/widgets/auth_gate.dart';
 
 import '../../features/driver/screens/driver_route_screen.dart';
 import '../../features/fleet/screens/fleet_owner_dashboard_screen.dart';
+import '../../features/fleet/screens/fleet_planning_screen.dart';
 import '../../features/student/screens/student_registration_screen.dart';
 import '../../features/student/screens/vans_marketplace_screen.dart';
 
@@ -30,6 +31,7 @@ class AppRoutes {
   static const String studentRegister = '/student-register';
   static const String vansMarketplace = '/vans-marketplace';
   static const String fleetDashboard = '/fleet-dashboard';
+  static const String fleetPlanning = '/fleet-planning';
 
   static Map<String, WidgetBuilder> routes({AuthService? authService}) => {
     welcome: (_) => const WelcomeScreen(),
@@ -43,6 +45,21 @@ class AppRoutes {
     driverRoute: (_) => const DriverRouteScreen(),
     studentRegister: (_) => const StudentRegistrationScreen(),
     vansMarketplace: (_) => const VansMarketplaceScreen(),
+    fleetPlanning: (context) {
+      final arguments = ModalRoute.of(context)?.settings.arguments;
+      if (arguments is! OwnerFleetRouteArguments ||
+          arguments.fleetId.trim().isEmpty ||
+          arguments.userId.trim().isEmpty) {
+        return const Scaffold(
+          body: Center(child: Text('Acesso à frota indisponível')),
+        );
+      }
+      return FleetPlanningScreen(
+        fleetId: arguments.fleetId,
+        userId: arguments.userId,
+        authService: authService ?? SupabaseAuthService(),
+      );
+    },
     fleetDashboard: (context) {
       final arguments = ModalRoute.of(context)?.settings.arguments;
       if (arguments is! OwnerFleetRouteArguments ||

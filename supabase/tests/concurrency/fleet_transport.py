@@ -59,7 +59,7 @@ def compete(env: dict, owner: str, first_sql: str, second_sql: str,
 
 
 def registration_race(env: dict, owner: str, sql: str) -> None:
-    """Observe the unique-key wait used by legacy registration receipts."""
+    """Observe the serialization wait used by registration receipts."""
     name = 'registration-' + uuid.uuid4().hex
     args = planning.psql_args(env, '-qAt')
     first = subprocess.Popen(args, env=env, stdin=subprocess.PIPE,
@@ -81,7 +81,7 @@ def registration_race(env: dict, owner: str, sql: str) -> None:
                 break
             time.sleep(0.05)
         else:
-            raise AssertionError('Registration contender did not wait on the unique key')
+            raise AssertionError('Registration contender did not wait on a transaction lock')
         planning.send(first, 'commit;\n')
         first.stdin.close()
         first.wait(timeout=10)
@@ -122,7 +122,7 @@ def main() -> None:
                 if race == 'registration':
                     first = ("select row_to_json(r) from public.create_fleet_managed_student("
                              f"'{case['fleet_id']}','{case['command_a']}','minor','Registration Race',"
-                             "'2015-01-01','18000000','Race Street','10',null,'Center','Test City','3550000','SP',"
+                             "'2015-01-01','18000000','Race Street','10',null,'Center','Cidade Teste','3550000','SP',"
                              f"-23.5,-46.6,'{case['school_id']}','morning','Contact','race@example.test',null) r;")
                     second, expected = first, None
                 elif race == 'same-command':
