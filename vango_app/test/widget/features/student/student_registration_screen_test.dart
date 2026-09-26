@@ -14,7 +14,7 @@ class FakeGeocodingService extends MapboxGeocodingService {
         streetNumber: '1400',
         neighborhood: 'Consolação',
         cityName: 'São Paulo',
-        cityIbgeCode: '3550308',
+        cityIbgeCode: '',
         stateCode: 'SP',
         postalCode: '01415-001',
         latitude: -23.5558,
