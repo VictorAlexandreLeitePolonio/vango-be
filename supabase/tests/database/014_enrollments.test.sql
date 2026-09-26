@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 \ir ../_helpers.psql
 \ir ../_approval.psql
 
-select plan(15);
+select plan(16);
 select pg_temp.seed_cycle_2_users();
 create temp table enrollment_test_ids(kind text primary key, id uuid) on commit drop;
 grant all on enrollment_test_ids to authenticated;
@@ -74,6 +74,14 @@ select is(
   (select count(*)::integer from public.fleet_enrollments where student_id = (select id from public.students where full_name = 'Teste Menor Enrollment') and status = 'active'),
   1,
   'approval creates one active enrollment'
+);
+select is(
+  (select to_jsonb(e) ->> 'source_type'
+   from public.fleet_enrollments e
+   where e.student_id = (select id from public.students where full_name = 'Teste Menor Enrollment')
+     and e.status = 'active'),
+  'join_request',
+  'approval creates a join-request enrollment'
 );
 select set_config('request.jwt.claims', '{"sub":"60000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 set local role authenticated;

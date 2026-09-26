@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/fleet_student_registration.dart';
 
 class PendingJoinRequest {
   const PendingJoinRequest({
@@ -80,6 +81,95 @@ class FleetService {
       throw StateError('Authenticated fleet access required');
     }
     return client;
+  }
+
+  static final _uuid = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
+  static String _optionString(Map row, String key) {
+    final value = row[key];
+    if (value is! String || value.trim().isEmpty) {
+      throw const FormatException('Invalid coverage option');
+    }
+    return value;
+  }
+
+  /// Returns the selected fleet's covered municipalities without fallback.
+  Future<List<FleetServiceCity>> getServiceCities(String fleetId) async {
+    final rows = await _authenticatedClient
+        .from('fleet_service_cities')
+        .select('city_ibge_code,city_name,state_code')
+        .eq('fleet_id', fleetId);
+    final cities = rows.map((row) {
+      final code = _optionString(row, 'city_ibge_code');
+      final name = _optionString(row, 'city_name');
+      final state = _optionString(row, 'state_code');
+      if (!RegExp(r'^\d{7}$').hasMatch(code) ||
+          !RegExp(r'^[A-Z]{2}$').hasMatch(state)) {
+        throw const FormatException('Invalid city option');
+      }
+      return FleetServiceCity(
+        cityIbgeCode: code,
+        cityName: name,
+        stateCode: state,
+      );
+    }).toList();
+    cities.sort((a, b) {
+      final order = a.cityName.toLowerCase().compareTo(
+        b.cityName.toLowerCase(),
+      );
+      return order == 0 ? a.cityIbgeCode.compareTo(b.cityIbgeCode) : order;
+    });
+    return cities;
+  }
+
+  /// Returns minimal active covered-school options through the owner RPC.
+  Future<List<FleetServiceSchool>> getServiceSchools(String fleetId) async {
+    final rows = await _authenticatedClient.rpc(
+      'list_fleet_service_schools',
+      params: {'p_fleet_id': fleetId},
+    );
+    if (rows is! List) throw const FormatException('Invalid school options');
+    final schools = rows.map((entry) {
+      if (entry is! Map) throw const FormatException('Invalid school option');
+      final id = _optionString(entry, 'id');
+      final name = _optionString(entry, 'name');
+      if (!_uuid.hasMatch(id)) {
+        throw const FormatException('Invalid school option');
+      }
+      return FleetServiceSchool(id: id, name: name);
+    }).toList();
+    schools.sort((a, b) {
+      final order = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      return order == 0 ? a.id.compareTo(b.id) : order;
+    });
+    return schools;
+  }
+
+  /// Sends one immutable command and accepts only a single valid receipt.
+  Future<FleetStudentRegistrationReceipt> registerStudent({
+    required String fleetId,
+    required String commandId,
+    required FleetStudentRegistration registration,
+  }) async {
+    final rows = await _authenticatedClient.rpc(
+      'create_fleet_managed_student',
+      params: registration.toRpcParams(fleetId: fleetId, commandId: commandId),
+    );
+    if (rows is! List || rows.length != 1 || rows.single is! Map) {
+      throw const FormatException('Invalid registration receipt');
+    }
+    final row = rows.single as Map;
+    final studentId = row['student_id'];
+    final enrollmentId = row['enrollment_id'];
+    if (studentId is! String ||
+        enrollmentId is! String ||
+        !_uuid.hasMatch(studentId) ||
+        !_uuid.hasMatch(enrollmentId)) {
+      throw const FormatException('Invalid registration receipt');
+    }
+    return (studentId: studentId, enrollmentId: enrollmentId);
   }
 
   /// Returns pending join requests for the selected owner fleet.

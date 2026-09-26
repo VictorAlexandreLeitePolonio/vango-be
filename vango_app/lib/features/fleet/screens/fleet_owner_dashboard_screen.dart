@@ -7,6 +7,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../auth/services/auth_service.dart';
 import '../services/fleet_service.dart';
+import '../services/fleet_student_error_mapper.dart';
+import '../models/fleet_student_submission_state.dart';
+import 'fleet_student_registration_screen.dart';
 
 /// Owner dashboard bound to a fleet and the session that opened the route.
 class FleetOwnerDashboardScreen extends StatefulWidget {
@@ -34,11 +37,17 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
   late final TabController _tabController;
   StreamSubscription<AuthState>? _authSubscription;
   int _requestId = 0;
+  int _contextEpoch = 0;
+  bool _committedRefresh = false;
+  late FleetStudentSubmissionState _submission;
 
   List<PendingJoinRequest> _pendingRequests = [];
   List<FleetMemberDriver> _drivers = [];
   List<OwnerEnrolledStudent> _enrolledStudents = [];
   bool _isLoading = true;
+  final _sectionLoading = [true, true, true];
+  final _sectionErrors = [false, false, false];
+  final _sectionGenerations = [0, 0, 0];
   bool _isDenied = false;
   bool _hasError = false;
 
@@ -47,6 +56,10 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
     super.initState();
     _fleetService = widget.fleetService ?? FleetService();
     _tabController = TabController(length: 3, vsync: this);
+    _submission = FleetStudentSubmissionState(
+      userId: widget.userId,
+      fleetId: widget.fleetId,
+    );
     _subscribeToAuth();
     unawaited(_checkAccess());
   }
@@ -72,6 +85,13 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
     if (oldWidget.fleetId != widget.fleetId ||
         oldWidget.userId != widget.userId ||
         oldWidget.authService != widget.authService) {
+      _submission.invalidate();
+      _committedRefresh = false;
+      _contextEpoch++;
+      _submission = FleetStudentSubmissionState(
+        userId: widget.userId,
+        fleetId: widget.fleetId,
+      );
       unawaited(_checkAccess());
     }
   }
@@ -92,6 +112,9 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
 
   void _denyAccess() {
     _requestId += 1;
+    _contextEpoch++;
+    _committedRefresh = false;
+    _submission.invalidate();
     if (!mounted) return;
     setState(() {
       _clearData();
@@ -137,20 +160,90 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
   }
 
   Future<void> _loadData(int requestId) async {
-    final requests = await _fleetService.getPendingRequests(widget.fleetId);
-    if (!_isCurrent(requestId)) return;
-    final drivers = await _fleetService.getFleetDrivers(widget.fleetId);
-    if (!_isCurrent(requestId)) return;
-    final enrolled = await _fleetService.getOwnerEnrolledStudents(
-      widget.fleetId,
-    );
-    if (!_isCurrent(requestId)) return;
+    setState(() => _isLoading = false);
+    await Future.wait([
+      _loadSection(
+        0,
+        requestId,
+        () => _fleetService.getPendingRequests(widget.fleetId),
+        (rows) => _pendingRequests = rows,
+      ),
+      _loadSection(
+        1,
+        requestId,
+        () => _fleetService.getFleetDrivers(widget.fleetId),
+        (rows) => _drivers = rows,
+      ),
+      _loadSection(
+        2,
+        requestId,
+        () => _fleetService.getOwnerEnrolledStudents(widget.fleetId),
+        (rows) => _enrolledStudents = rows,
+      ),
+    ]);
+  }
+
+  Future<void> _loadSection<T>(
+    int section,
+    int requestId,
+    Future<List<T>> Function() read,
+    void Function(List<T>) apply,
+  ) async {
+    final generation = ++_sectionGenerations[section];
     setState(() {
-      _pendingRequests = requests;
-      _drivers = drivers;
-      _enrolledStudents = enrolled;
-      _isLoading = false;
+      _sectionLoading[section] = true;
+      _sectionErrors[section] = false;
     });
+    try {
+      final rows = await read();
+      if (!_isCurrent(requestId) ||
+          generation != _sectionGenerations[section]) {
+        return;
+      }
+      setState(() {
+        apply(rows);
+        _sectionLoading[section] = false;
+      });
+    } catch (error) {
+      if (!_isCurrent(requestId) ||
+          generation != _sectionGenerations[section]) {
+        return;
+      }
+      if (FleetStudentErrorMapper.classifyWriteFailure(error) ==
+          FleetStudentWriteFailureKind.accessUnavailable) {
+        _denyAccess();
+        return;
+      }
+      setState(() {
+        _sectionErrors[section] = true;
+        _sectionLoading[section] = false;
+      });
+    }
+  }
+
+  Widget _section(int index, Widget Function() content) {
+    if (_sectionLoading[index]) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_sectionErrors[index]) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              index == 2 && _committedRefresh
+                  ? 'Aluno cadastrado. Não foi possível atualizar a lista. Tente novamente.'
+                  : 'Não foi possível carregar a frota',
+            ),
+            ElevatedButton(
+              onPressed: index == 2 ? _refreshStudents : _checkAccess,
+              child: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      );
+    }
+    return content();
   }
 
   Future<void> _handleDecision(String requestId, bool approve) async {
@@ -248,9 +341,9 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
           : TabBarView(
               controller: _tabController,
               children: [
-                _buildRequestsTab(),
-                _buildFleetTeamTab(),
-                _buildEnrolledStudentsTab(),
+                _section(0, _buildRequestsTab),
+                _section(1, _buildFleetTeamTab),
+                _section(2, _buildEnrolledStudentsTab),
               ],
             ),
     );
@@ -474,7 +567,90 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
     );
   }
 
-  Widget _buildEnrolledStudentsTab() {
+  Future<void> _openRegistration() async {
+    final epoch = _contextEpoch;
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => FleetStudentRegistrationScreen(
+          fleetId: widget.fleetId,
+          userId: widget.userId,
+          authService: widget.authService,
+          fleetService: _fleetService,
+          submissionState: _submission,
+        ),
+      ),
+    );
+    if (!mounted ||
+        epoch != _contextEpoch ||
+        widget.authService.currentSession?.user.id != widget.userId) {
+      return;
+    }
+    if (result == true && _submission.receipt != null) {
+      _committedRefresh = true;
+      await _refreshStudents();
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _refreshStudents() async {
+    final epoch = _contextEpoch;
+    try {
+      final access = await widget.authService.getMyAccessContext();
+      if (!mounted ||
+          epoch != _contextEpoch ||
+          widget.authService.currentSession?.user.id != widget.userId) {
+        return;
+      }
+      if (!access.ownerFleetIds.contains(widget.fleetId)) {
+        _denyAccess();
+        return;
+      }
+      await _loadSection(
+        2,
+        _requestId,
+        () => _fleetService.getOwnerEnrolledStudents(widget.fleetId),
+        (rows) => _enrolledStudents = rows,
+      );
+      if (!mounted || epoch != _contextEpoch) return;
+      if (!_sectionErrors[2] && !_sectionLoading[2] && _committedRefresh) {
+        setState(() {
+          _committedRefresh = false;
+          _submission = FleetStudentSubmissionState(
+            userId: widget.userId,
+            fleetId: widget.fleetId,
+          );
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Aluno cadastrado.')));
+      }
+    } catch (_) {
+      if (!mounted || epoch != _contextEpoch) return;
+      setState(() {
+        _sectionErrors[2] = true;
+        _sectionLoading[2] = false;
+      });
+    }
+  }
+
+  Widget _buildEnrolledStudentsTab() => Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: ElevatedButton(
+          onPressed: _openRegistration,
+          child: Text(
+            _submission.phase == FleetStudentSubmissionPhase.unknown
+                ? 'Retomar confirmação do cadastro'
+                : 'Cadastrar aluno',
+          ),
+        ),
+      ),
+      Expanded(child: _buildStudentList()),
+    ],
+  );
+
+  Widget _buildStudentList() {
     if (_enrolledStudents.isEmpty) {
       return const Center(
         child: Padding(
