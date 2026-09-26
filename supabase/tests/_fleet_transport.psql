@@ -1,0 +1,57 @@
+\ir _helpers.psql
+\ir _planning.psql
+
+-- The helper never changes the role: authorization tests still exercise the caller.
+create function pg_temp.fleet_transport_error(p_sql text) returns text
+language plpgsql as $$
+begin
+  execute p_sql;
+  return null;
+exception when sqlstate 'PGRST' then
+  return sqlerrm::jsonb->>'code';
+end;
+$$;
+
+create function pg_temp.seed_fleet_transport() returns void language plpgsql as $$
+declare
+  v_minor record;
+  v_adult record;
+  v_day date := current_date + 2;
+begin
+  perform pg_temp.seed_cycle_3();
+  while extract(isodow from v_day) <> 1 loop v_day := v_day + 1; end loop;
+  update public.schools set latitude = -23.5, longitude = -46.6
+  where id = (select id from planning_ids where kind = 'school');
+  perform set_config('request.jwt.claims', '{"sub":"40000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+  select * into v_minor from public.create_fleet_managed_student(
+    '41000000-0000-0000-0000-000000000001','91000000-0000-4000-8000-000000000016',
+    'minor','Fleet Transport Minor', current_date - 3650, '18000000','Main Street','10',
+    null,'Center','Test City','3550000','SP',-23.5,-46.6,
+    (select id from planning_ids where kind='school'),'morning','Contact','contact@example.com',null);
+  select * into v_adult from public.create_fleet_managed_student(
+    '41000000-0000-0000-0000-000000000001','91000000-0000-4000-8000-000000000017',
+    'adult','Fleet Transport Adult', current_date - 10000, '18000000','Main Street','11',
+    null,'Center','Test City','3550000','SP',-23.5,-46.6,
+    (select id from planning_ids where kind='school'),'morning','Adult Contact','adult@example.com',null);
+  create temp table transport_case on commit drop as select
+    '41000000-0000-0000-0000-000000000001'::uuid fleet_id,
+    '40000000-0000-0000-0000-000000000001'::uuid owner_id,
+    '40000000-0000-0000-0000-000000000002'::uuid second_owner_id,
+    '40000000-0000-0000-0000-000000000003'::uuid driver_id,
+    '40000000-0000-0000-0000-000000000005'::uuid foreign_owner_id,
+    (select id from planning_ids where kind='school') school_id,
+    v_minor.student_id, v_minor.enrollment_id,
+    v_adult.enrollment_id adult_enrollment_id,
+    (select id from planning_ids where kind='going-schedule') going_schedule_id,
+    (select id from planning_ids where kind='return-schedule') return_schedule_id,
+    (select routing_revision from public.fleet_enrollments where id=v_minor.enrollment_id) initial_revision,
+    '92000000-0000-4000-8000-000000000016'::uuid command_a,
+    '92000000-0000-4000-8000-000000000017'::uuid command_b,
+    v_day effective_on,
+    jsonb_build_array(
+      jsonb_build_object('schedule_id',(select id from planning_ids where kind='going-schedule'),'weekday',1,'direction','going'),
+      jsonb_build_object('schedule_id',(select id from planning_ids where kind='going-schedule'),'weekday',3,'direction','going'),
+      jsonb_build_object('schedule_id',(select id from planning_ids where kind='return-schedule'),'weekday',5,'direction','return')) allocations;
+  grant all on transport_case to authenticated;
+end;
+$$;

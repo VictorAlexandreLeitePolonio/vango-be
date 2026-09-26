@@ -1,0 +1,10 @@
+begin;
+\ir ../_fleet_transport.psql
+select pg_temp.seed_fleet_transport();
+select public.save_van(fleet_id,(select id from planning_ids where kind='van'),'CYC-1234','Micro','Race',1)
+from transport_case;
+select row_to_json(c)::text as transport_fixture from transport_case c \gset
+select id as marketplace_request from planning_ids where kind='request' \gset
+commit;
+\echo FIXTURE :transport_fixture
+\echo REQUEST :marketplace_request

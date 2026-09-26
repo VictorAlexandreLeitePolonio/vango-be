@@ -50,6 +50,14 @@ Published fleets appear based on served cities and covered institutions. Public 
 
 Primary guardians create minor student profiles, while adult students create their own records. Link requests store a private snapshot of the residential address, require an active/covered school and served city, and await owner approval. Approval establishes the enrollment link within the same transaction.
 
+Fleet owners can also register a minor or adult before the student has an account. These records retain the `fleet_owner_created` origin even if an adult profile is linked later, and the direct enrollment records its school and shift without creating a join request or guardian relationship for a pre-auth contact. Contact details are stored separately with owner-only reads. Accepting a fleet invitation still creates a pending request; the enrollment is created only after approval.
+
+### Owner student RPCs
+
+`create_fleet_managed_student` accepts a fleet ID, command UUID, student type and details, structured address, required latitude and longitude, covered school, shift, and primary contact. An active owner with a confirmed email can create a student, active enrollment, contact, and sanitized audit event in one transaction. The selected school must be active and covered by the fleet; the fleet need not be published. No Auth account, guardian link, or join request is created. The RPC returns `student_id` and `enrollment_id`. Repeating the same command with the same owner and canonical payload returns those IDs; changing the owner or payload returns `idempotency_conflict`. A new command creates a new registration even for matching personal details.
+
+`list_fleet_students(p_fleet_id uuid)` returns active enrollments from both registration origins to an active owner, ordered by lowercase student name and student ID. Its fields are enrollment/student IDs, student type and name, structured address, school ID/name, and shift. It excludes contacts, profile/Auth data, coordinates, and idempotency receipts. Missing or unauthorized fleets return `not_found`. Migrations `20260924104811_prd_10_owner_fleet_student_rpcs.sql` and `20260924105909_prd_10_registration_replay_after_coverage_change.sql` are applied to the linked VanGo project; the latter keeps valid retries working after school coverage or age changes.
+
 Owners can also invite guardians or adult students. Flutter retains the token during sign-up/login callbacks; the backend stores only the SHA-256 hash and accepts invitations only for matching confirmed emails. Secondary guardians receive derived access to the dependent's active links.
 
 Approval requires full seat allocation in the same transaction; accepting an invitation creates a pending request. New requests and schedule changes compete for seats by seniority among fully compatible entries, subject to owner acceptance or rejection.
@@ -173,3 +181,38 @@ Specs were approved on 2026-09-07. Implementation plans record contracts and tas
 ## Backend Validation
 
 Run `python3 supabase/tests/run_database_tests.py` in the local Supabase environment. The runner expands `\ir` includes into temporary files, executes the pgTAP test suite, and cleans up temporary files afterwards without affecting remote environments.
+
+
+## Issue 16: Direct fleet-student transport allocation
+
+`assign_fleet_student_transport(p_enrollment_id uuid, p_school_id uuid,
+p_allocations jsonb, p_effective_on date, p_command_id uuid,
+p_expected_routing_revision bigint)` returns one immutable receipt containing
+`command_id`, `enrollment_id`, `routing_revision`, and `effective_on`.
+Only an active confirmed owner can assign an active owner-registered enrollment.
+School is an assertion: the command never transfers schools or changes registration provenance.
+
+Allocations are explicit `{schedule_id, weekday, direction}` triples, one per ISO
+weekday/direction pair. The command replaces the entire program from the requested
+service date, preserving older periods and overnight executions that started before it.
+First allocations may start today before their local confirmation cutoff; replacements
+start on a later local date. Closed/started/terminal affected trips cannot be rewritten.
+No marketplace request, membership, Auth account, or trip-generation command is created.
+
+Retain the command UUID, exact submitted payload and expected revision across network
+retries. Replay returns the historical receipt after current authorization, without
+reapplying an old program. A new stale command returns `revision_conflict`; reusing a
+command for another actor/payload returns `idempotency_conflict`. Other structured
+errors include `invalid_input`, `invalid_transition`, `effective_date_conflict`,
+`capacity_exceeded`, `schedule_conflict`, and sanitized `allocation_failed`.
+Owner `get_fleet_planning` adds `enrollment_revisions`, including unallocated active
+enrollments; driver-only callers receive an empty array. Existing projection fields remain.
+
+Local verification uses the existing pgTAP runner and
+`supabase/tests/concurrency/fleet_transport.py`. The latter requires explicit local
+`PGHOST`, `PGPORT`, `PGUSER=postgres`, `PGDATABASE=postgres`, and `PGPASSWORD`, a
+server-compatible PostgreSQL 17+ `pg_dump`, and the local Supabase administrator for
+restoration. It creates random isolated databases, observes actual advisory waits,
+and drops only databases created by its invocation. Cron is excluded from those copies.
+Use a dedicated local Supabase stack; never point tests at a shared or remote database.
+No remote migration rollout is implied by commit/push.
