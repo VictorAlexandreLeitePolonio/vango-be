@@ -558,3 +558,38 @@ The following third-party integrations will be evaluated prior to deployment:
 - FCM/APNs credentials and configuration for the approved push notification provider;
 - Adaptive GPS sampling frequency and persistence interval strategy;
 - Data retention legal compliance policies.
+
+
+## Issue 16: Direct fleet-student transport allocation
+
+`assign_fleet_student_transport(p_enrollment_id uuid, p_school_id uuid,
+p_allocations jsonb, p_effective_on date, p_command_id uuid,
+p_expected_routing_revision bigint)` returns one immutable receipt containing
+`command_id`, `enrollment_id`, `routing_revision`, and `effective_on`.
+Only an active confirmed owner can assign an active owner-registered enrollment.
+School is an assertion: the command never transfers schools or changes registration provenance.
+
+Allocations are explicit `{schedule_id, weekday, direction}` triples, one per ISO
+weekday/direction pair. The command replaces the entire program from the requested
+service date, preserving older periods and overnight executions that started before it.
+First allocations may start today before their local confirmation cutoff; replacements
+start on a later local date. Closed/started/terminal affected trips cannot be rewritten.
+No marketplace request, membership, Auth account, or trip-generation command is created.
+
+Retain the command UUID, exact submitted payload and expected revision across network
+retries. Replay returns the historical receipt after current authorization, without
+reapplying an old program. A new stale command returns `revision_conflict`; reusing a
+command for another actor/payload returns `idempotency_conflict`. Other structured
+errors include `invalid_input`, `invalid_transition`, `effective_date_conflict`,
+`capacity_exceeded`, `schedule_conflict`, and sanitized `allocation_failed`.
+Owner `get_fleet_planning` adds `enrollment_revisions`, including unallocated active
+enrollments; driver-only callers receive an empty array. Existing projection fields remain.
+
+Local verification uses the existing pgTAP runner and
+`supabase/tests/concurrency/fleet_transport.py`. The latter requires explicit local
+`PGHOST`, `PGPORT`, `PGUSER=postgres`, `PGDATABASE=postgres`, and `PGPASSWORD`, a
+server-compatible PostgreSQL 17+ `pg_dump`, and the local Supabase administrator for
+restoration. It creates random isolated databases, observes actual advisory waits,
+and drops only databases created by its invocation. Cron is excluded from those copies.
+Use a dedicated local Supabase stack; never point tests at a shared or remote database.
+No remote migration rollout is implied by commit/push.

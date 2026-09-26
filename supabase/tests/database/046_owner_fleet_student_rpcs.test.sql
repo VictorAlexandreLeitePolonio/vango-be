@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 \ir ../_helpers.psql
 
-select plan(65);
+select plan(66);
 select has_column('public', 'fleet_enrollments', 'registration_command_id', 'owner registration has a command receipt');
 select has_column('public', 'fleet_enrollments', 'registration_payload_hash', 'owner registration has a payload receipt');
 select ok(exists (select 1 from pg_constraint where conname = 'fleet_enrollments_registration_receipt_valid'), 'source-specific receipt is constrained');
