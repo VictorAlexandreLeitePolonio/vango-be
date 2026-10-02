@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:vango_app/features/fleet/models/fleet_planning_commands.dart';
+import 'package:vango_app/features/fleet/models/fleet_student_transport.dart';
 import 'fleet_planning_test.dart';
 import 'package:vango_app/features/fleet/services/fleet_planning_service.dart';
 
@@ -209,4 +210,99 @@ void main() {
       );
     },
   );
+  group('assignStudentTransport', () {
+    const enrollment = '30fb15de-8023-41ee-a1dc-16877cf93e35';
+    const school = '65000000-0000-0000-0000-000000000001';
+    const schedule = '50f207a3-848d-4610-998d-850453c2025d';
+    final draft = StudentTransportDraft(
+      enrollmentId: enrollment,
+      schoolId: school,
+      allocations: {(weekday: 1, direction: 'going'): schedule},
+      effectiveOn: '2026-10-06',
+      expectedRoutingRevision: 1,
+    );
+
+    http.Response receipt(
+      http.Request request, {
+      String command = testId,
+      String enrollmentId = enrollment,
+    }) => http.Response(
+      jsonEncode([
+        {
+          'command_id': command,
+          'enrollment_id': enrollmentId,
+          'routing_revision': 2,
+          'effective_on': '2026-10-06',
+        },
+      ]),
+      200,
+      headers: {'content-type': 'application/json'},
+      request: request,
+    );
+
+    test(
+      'sends the exact direct-allocation RPC and returns the new revision',
+      () async {
+        final client = await planningClient((request) async {
+          expect(
+            request.url.path,
+            endsWith('/rpc/assign_fleet_student_transport'),
+          );
+          expect(jsonDecode(request.body), {
+            'p_enrollment_id': enrollment,
+            'p_school_id': school,
+            'p_allocations': [
+              {'schedule_id': schedule, 'weekday': 1, 'direction': 'going'},
+            ],
+            'p_effective_on': '2026-10-06',
+            'p_command_id': testId,
+            'p_expected_routing_revision': 1,
+          });
+          return receipt(request);
+        });
+        addTearDown(client.dispose);
+        expect(
+          await FleetPlanningService(
+            client: client,
+          ).assignStudentTransport(draft, testId),
+          2,
+        );
+      },
+    );
+
+    test('rejects a receipt for another command or enrollment', () async {
+      for (final mismatch in [
+        (
+          command: '22222222-2222-4222-8222-222222222222',
+          enrollmentId: enrollment,
+        ),
+        (command: testId, enrollmentId: '22222222-2222-4222-8222-222222222222'),
+      ]) {
+        final client = await planningClient(
+          (request) async => receipt(
+            request,
+            command: mismatch.command,
+            enrollmentId: mismatch.enrollmentId,
+          ),
+        );
+        addTearDown(client.dispose);
+        await expectLater(
+          FleetPlanningService(
+            client: client,
+          ).assignStudentTransport(draft, testId),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test('requires an authenticated session', () async {
+      final service = FleetPlanningService(
+        client: SupabaseClient('https://example.supabase.co', 'test-key'),
+      );
+      await expectLater(
+        service.assignStudentTransport(draft, testId),
+        throwsA(isA<AuthException>()),
+      );
+    });
+  });
 }

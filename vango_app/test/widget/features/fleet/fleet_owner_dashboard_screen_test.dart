@@ -6,11 +6,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:vango_app/core/routes/app_routes.dart';
 import 'package:vango_app/features/auth/models/access_context.dart';
 import 'package:vango_app/features/fleet/screens/fleet_owner_dashboard_screen.dart';
+import 'package:vango_app/features/fleet/screens/fleet_student_transport_screen.dart';
 import 'package:vango_app/features/fleet/services/fleet_service.dart';
 import 'package:vango_app/features/fleet/screens/fleet_student_registration_screen.dart';
 import 'package:vango_app/features/fleet/services/fleet_student_error_mapper.dart';
 import '../../../unit/features/fleet/fleet_student_registration_test.dart'
     as fixtures;
+import 'fleet_student_transport_screen_test.dart'
+    show FakeTransportPlanningService, transportStudent;
 
 import '../../../support/fake_auth_service.dart';
 
@@ -128,8 +131,12 @@ void main() {
       fleet.students = [
         (
           id: 'server-student',
+          enrollmentId: 'server-enrollment',
           fullName: 'Nome canônico do servidor',
           address: 'Rua canônica',
+          schoolId: null,
+          schoolName: null,
+          shift: null,
         ),
       ];
       await tester.tap(find.text('Tentar novamente'));
@@ -249,13 +256,25 @@ void main() {
       newer.complete([
         (
           id: 'new',
+          enrollmentId: 'new-enrollment',
           fullName: 'Latest canonical student',
           address: 'Current address',
+          schoolId: null,
+          schoolName: null,
+          shift: null,
         ),
       ]);
       await tester.pumpAndSettle();
       older.complete([
-        (id: 'old', fullName: 'Stale student', address: 'Old address'),
+        (
+          id: 'old',
+          enrollmentId: 'old-enrollment',
+          fullName: 'Stale student',
+          address: 'Old address',
+          schoolId: null,
+          schoolName: null,
+          shift: null,
+        ),
       ]);
       await tester.pumpAndSettle();
       expect(find.text('Latest canonical student'), findsOneWidget);
@@ -583,6 +602,42 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Aluno aprovado e adicionado à frota!'), findsNothing);
+  });
+
+  testWidgets('student card opens the transport plan for that enrollment', (
+    tester,
+  ) async {
+    final auth = FakeAuthService.signedIn(
+      userId: 'user-1',
+      accessContext: _context('fleet-a'),
+    );
+    addTearDown(auth.dispose);
+    final fleet = _RecordingFleetService()..students = [transportStudent];
+    final planning = FakeTransportPlanningService();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FleetOwnerDashboardScreen(
+          fleetId: 'fleet-a',
+          userId: 'user-1',
+          authService: auth,
+          fleetService: fleet,
+          planningService: planning,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alunos (1)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Programar transporte'));
+    await tester.pumpAndSettle();
+
+    final screen = tester.widget<FleetStudentTransportScreen>(
+      find.byType(FleetStudentTransportScreen),
+    );
+    expect(screen.fleetId, 'fleet-a');
+    expect(screen.userId, 'user-1');
+    expect(screen.student.enrollmentId, transportStudent.enrollmentId);
+    expect(planning.loads, 1);
   });
 }
 

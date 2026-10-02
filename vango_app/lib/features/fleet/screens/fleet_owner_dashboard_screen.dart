@@ -8,21 +8,27 @@ import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../auth/services/auth_service.dart';
 import '../services/fleet_service.dart';
+import '../services/fleet_planning_service.dart';
 import '../services/fleet_student_error_mapper.dart';
 import '../models/fleet_student_submission_state.dart';
 import 'fleet_student_registration_screen.dart';
+import 'fleet_student_transport_screen.dart';
 
 /// Owner dashboard bound to a fleet and the session that opened the route.
 class FleetOwnerDashboardScreen extends StatefulWidget {
   const FleetOwnerDashboardScreen({
     super.key,
     this.fleetService,
+    this.planningService,
     required this.fleetId,
     required this.userId,
     required this.authService,
   });
 
   final FleetService? fleetService;
+
+  /// Injected in tests; the transport screen creates its own service otherwise.
+  final FleetPlanningService? planningService;
   final String fleetId;
   final String userId;
   final AuthService authService;
@@ -604,6 +610,19 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
     if (mounted) setState(() {});
   }
 
+  Future<void> _openTransport(OwnerEnrolledStudent student) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => FleetStudentTransportScreen(
+            fleetId: widget.fleetId,
+            userId: widget.userId,
+            student: student,
+            authService: widget.authService,
+            service: widget.planningService,
+          ),
+        ),
+      );
+
   Future<void> _refreshStudents() async {
     final epoch = _contextEpoch;
     try {
@@ -733,6 +752,14 @@ class _FleetOwnerDashboardScreenState extends State<FleetOwnerDashboardScreen>
                       ),
                     ),
                   ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Programar transporte',
+                onPressed: () => _openTransport(st),
+                icon: const Icon(
+                  Icons.event_note_outlined,
+                  color: AppColors.primaryOrangeDark,
                 ),
               ),
             ],

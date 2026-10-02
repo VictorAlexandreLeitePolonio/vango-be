@@ -256,12 +256,28 @@ void main() {
       return http.Response(
         jsonEncode([
           {
+            'enrollment_id': 'enrollment-a',
             'student_id': 'student-a',
             'full_name': 'Aluno Teste',
             'street': 'Rua',
             'street_number': '1',
             'neighborhood': 'Centro',
             'city_name': 'Cidade',
+            'school_id': 'school-a',
+            'school_name': 'Escola',
+            'shift': 'morning',
+          },
+          {
+            'enrollment_id': 'enrollment-b',
+            'student_id': 'student-b',
+            'full_name': 'Sem Escola',
+            'street': 'Rua',
+            'street_number': '2',
+            'neighborhood': 'Centro',
+            'city_name': 'Cidade',
+            'school_id': null,
+            'school_name': null,
+            'shift': null,
           },
         ]),
         200,
@@ -274,8 +290,14 @@ void main() {
     final students = await FleetService(
       client: client,
     ).getOwnerEnrolledStudents('fleet-a');
-    expect(students.single.fullName, 'Aluno Teste');
-    expect(students.single.address, 'Rua, 1 - Centro, Cidade');
+    expect(students.first.fullName, 'Aluno Teste');
+    expect(students.first.address, 'Rua, 1 - Centro, Cidade');
+    expect(students.first.enrollmentId, 'enrollment-a');
+    expect(students.first.schoolId, 'school-a');
+    expect(students.first.schoolName, 'Escola');
+    expect(students.first.shift, 'morning');
+    expect(students.last.schoolId, isNull);
+    expect(students.last.shift, isNull);
   });
 
   test(

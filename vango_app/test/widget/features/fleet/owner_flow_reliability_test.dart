@@ -361,8 +361,12 @@ void main() {
       fleet.students = [
         (
           id: 'canonical-student',
+          enrollmentId: 'canonical-enrollment',
           fullName: 'Nome canônico do servidor',
           address: 'Endereço canônico',
+          schoolId: null,
+          schoolName: null,
+          shift: null,
         ),
       ];
       await tester.tap(find.text('Tentar novamente').last);

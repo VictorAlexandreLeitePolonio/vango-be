@@ -53,4 +53,28 @@ void main() {
       expect(PlanningErrorMapper.kind(error), isNot(PlanningFailure.uncertain));
     }
   });
+  test('direct allocation codes are safe pt-BR rejections', () {
+    for (final (code, text) in [
+      (
+        'effective_date_conflict',
+        'A data de início não está disponível para esta programação. Escolha outra data.',
+      ),
+      (
+        'invalid_transition',
+        'Esta ação não está disponível no estado atual do cadastro.',
+      ),
+      ('schedule_conflict', 'Este horário conflita com outra programação.'),
+    ]) {
+      final error = PostgrestException(message: 'secret', code: code);
+      expect(PlanningErrorMapper.kind(error), PlanningFailure.rejected);
+      expect(PlanningErrorMapper.message(error), text);
+    }
+    // allocation_failed is an unexpected 500: keep the command id and verify again.
+    expect(
+      PlanningErrorMapper.kind(
+        const PostgrestException(message: 'x', code: 'allocation_failed'),
+      ),
+      PlanningFailure.uncertain,
+    );
+  });
 }

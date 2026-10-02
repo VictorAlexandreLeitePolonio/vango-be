@@ -57,8 +57,16 @@ class EnrolledStudentItem {
   final double longitude;
 }
 
-/// Student details returned by the owner-only fleet list projection.
-typedef OwnerEnrolledStudent = ({String id, String fullName, String address});
+/// Owner-visible enrolled student, including the enrollment that receives transport.
+typedef OwnerEnrolledStudent = ({
+  String id,
+  String enrollmentId,
+  String fullName,
+  String address,
+  String? schoolId,
+  String? schoolName,
+  String? shift,
+});
 
 /// Reads owner fleet data through authenticated Supabase queries.
 class FleetService {
@@ -304,8 +312,12 @@ class FleetService {
       final city = row['city_name'] as String;
       return (
         id: row['student_id'] as String,
+        enrollmentId: row['enrollment_id'] as String,
         fullName: row['full_name'] as String,
         address: '$street, $number - $neighborhood, $city',
+        schoolId: row['school_id'] as String?,
+        schoolName: row['school_name'] as String?,
+        shift: row['shift'] as String?,
       );
     }).toList();
   }

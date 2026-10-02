@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/fleet_planning.dart';
 import '../models/fleet_planning_commands.dart';
+import '../models/fleet_student_transport.dart';
 
 /// Authenticated planning and published-catalog RPC access; no widget writes tables.
 class FleetPlanningService {
@@ -41,6 +42,27 @@ class FleetPlanningService {
   /// Persists a revision-aware recurring schedule command.
   Future<String> saveSchedule(SchedulePlanningCommand command) =>
       _save('save_route_schedule', command.toRpcParams());
+
+  /// Replaces an owner-registered student's weekly plan from the draft's date.
+  /// Only a matching backend receipt counts as success; returns the new revision.
+  Future<int> assignStudentTransport(
+    StudentTransportDraft draft,
+    String commandId,
+  ) async {
+    final rows = await _authenticated.rpc(
+      'assign_fleet_student_transport',
+      params: draft.toRpcParams(commandId),
+    );
+    if (rows is! List || rows.length != 1) {
+      throw const PlanningResponseFormatException('transport receipt');
+    }
+    final row = planningObject(rows.single, 'transport receipt');
+    if (planningId(row, 'command_id') != commandId ||
+        planningId(row, 'enrollment_id') != draft.enrollmentId) {
+      throw const PlanningResponseFormatException('transport receipt');
+    }
+    return planningInt(row, 'routing_revision', 1);
+  }
 
   /// Explicitly enables the current owner as an operator, preserving role provenance.
   Future<List<String>> enableOwnerDriving(
