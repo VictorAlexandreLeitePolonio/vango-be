@@ -18,9 +18,13 @@ import '../widgets/mapbox_route_map.dart';
 class DriverRouteScreen extends StatefulWidget {
   const DriverRouteScreen({
     super.key,
+    required this.tripId,
     this.routeService,
     this.locationService,
   });
+
+  /// Persisted trip to load through the authorized `get_trip` projection.
+  final String tripId;
 
   /// Optional injected route calculation service (defaults to standard instance).
   final DriverRouteService? routeService;
@@ -31,7 +35,6 @@ class DriverRouteScreen extends StatefulWidget {
   @override
   State<DriverRouteScreen> createState() => _DriverRouteScreenState();
 }
-
 
 class _DriverRouteScreenState extends State<DriverRouteScreen> {
   late final DriverRouteService _routeService;
@@ -78,22 +81,31 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
       _errorMessage = null;
     });
 
+    // The persisted trip is the source of truth: always reload it from the
+    // backend so reopening the screen restores the real status.
+    DriverTrip trip;
     try {
-      final trip = await _routeService.calculateAndOptimizeRoute(
+      trip = await _routeService.getTrip(widget.tripId);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Não foi possível carregar esta viagem.';
+        _isLoading = false;
+      });
+      return;
+    }
+    // Route geometry is best-effort: a directions failure keeps the trip
+    // usable with its stop list instead of hiding it behind an error.
+    try {
+      trip = await _routeService.calculateAndOptimizeRoute(
         forceRefresh: forceRefresh,
       );
-      if (!mounted) return;
-      setState(() {
-        _trip = trip;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'Erro ao carregar rota: $e';
-        _isLoading = false;
-      });
-    }
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _trip = trip;
+      _isLoading = false;
+    });
   }
 
   Future<void> _handleStartTrip() async {
@@ -111,9 +123,11 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(_selectedTrackingMode == LocationTrackingMode.deviceGps
-            ? 'Percurso iniciado! GPS nativo ativado.'
-            : 'Percurso iniciado! Simulação virtual ativada.'),
+        content: Text(
+          _selectedTrackingMode == LocationTrackingMode.deviceGps
+              ? 'Percurso iniciado! GPS nativo ativado.'
+              : 'Percurso iniciado! Simulação virtual ativada.',
+        ),
         backgroundColor: AppColors.successGreen,
         behavior: SnackBarBehavior.floating,
       ),
@@ -186,7 +200,7 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
     return Scaffold(
       backgroundColor: AppColors.backgroundWhite,
       appBar: AppBar(
-        title: const Text('Rota do Dia'),
+        title: Text(_trip?.routeName ?? 'Viagem'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -210,7 +224,7 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
             CircularProgressIndicator(color: AppColors.primaryOrange),
             SizedBox(height: 16),
             Text(
-              'Traçando melhor rota no Mapbox...',
+              'Carregando viagem...',
               style: TextStyle(color: AppColors.textMuted),
             ),
           ],
@@ -223,7 +237,10 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: const TextStyle(color: AppColors.errorRed)),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(color: AppColors.errorRed),
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => _loadRoute(forceRefresh: true),
@@ -235,19 +252,21 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
     }
 
     final trip = _trip!;
-    final isTripActive = trip.status == TripStatus.inProgress;
+    final isTripActive = trip.status == TripStatus.active;
     final isCompleted = trip.status == TripStatus.completed;
+    final isCancelled = trip.status == TripStatus.cancelled;
+    final canOperate = trip.isOperableBy(_routeService.currentUserId);
 
-    // Determine current van marker position
-    final currentVanPos = _liveVanPos ??
-        (isTripActive && trip.nextPendingStop != null
-            ? LatLng(
-                trip.nextPendingStop!.latitude,
-                trip.nextPendingStop!.longitude,
-              )
-            : trip.stops.isNotEmpty
-                ? LatLng(trip.stops.first.latitude, trip.stops.first.longitude)
-                : null);
+    // Van marker: live telemetry first, otherwise the next mappable pending
+    // stop while active, otherwise the first mappable stop.
+    final anchorStop = isTripActive
+        ? trip.pendingStops.where((s) => s.hasCoordinates).firstOrNull
+        : trip.mappableStops.firstOrNull;
+    final currentVanPos =
+        _liveVanPos ??
+        (anchorStop == null
+            ? null
+            : LatLng(anchorStop.latitude!, anchorStop.longitude!));
 
     return Stack(
       children: [
@@ -259,7 +278,7 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
               child: Stack(
                 children: [
                   MapboxRouteMap(
-                    stops: trip.stops,
+                    stops: trip.mappableStops,
                     polylinePoints: trip.polylinePoints,
                     currentVanPosition: currentVanPos,
                     headingDegrees: _vanHeading,
@@ -330,7 +349,9 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.successGreen.withValues(alpha: 0.15),
+                                color: AppColors.successGreen.withValues(
+                                  alpha: 0.15,
+                                ),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -355,9 +376,14 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                     right: 16,
                     child: Center(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: AppColors.cardBackground.withValues(alpha: 0.95),
+                          color: AppColors.cardBackground.withValues(
+                            alpha: 0.95,
+                          ),
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: const [
                             BoxShadow(
@@ -402,9 +428,10 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                                 onTap: () {
                                   setState(() {
                                     _selectedTrackingMode =
-                                        _selectedTrackingMode == LocationTrackingMode.simulation
-                                            ? LocationTrackingMode.deviceGps
-                                            : LocationTrackingMode.simulation;
+                                        _selectedTrackingMode ==
+                                            LocationTrackingMode.simulation
+                                        ? LocationTrackingMode.deviceGps
+                                        : LocationTrackingMode.simulation;
                                   });
                                 },
                                 child: Text(
@@ -430,7 +457,10 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                       left: 16,
                       right: 16,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primaryOrangeDark,
                           borderRadius: BorderRadius.circular(16),
@@ -444,7 +474,11 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.near_me_rounded, color: Colors.white, size: 24),
+                            const Icon(
+                              Icons.near_me_rounded,
+                              color: Colors.white,
+                              size: 24,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -484,7 +518,8 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                                   vertical: 8,
                                 ),
                               ),
-                              onPressed: () => _handleBoardStop(_approachingStop!),
+                              onPressed: () =>
+                                  _handleBoardStop(_approachingStop!),
                               child: const Text(
                                 'Embarcar',
                                 style: TextStyle(fontWeight: FontWeight.bold),
@@ -505,7 +540,9 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                 child: Container(
                   decoration: const BoxDecoration(
                     color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: AppColors.shadowMedium,
@@ -532,7 +569,9 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                           children: [
                             Text(
                               'Paradas do Dia (${trip.stops.length})',
-                              style: AppTextStyles.heading3.copyWith(fontSize: 18),
+                              style: AppTextStyles.heading3.copyWith(
+                                fontSize: 18,
+                              ),
                             ),
                             Text(
                               '${trip.totalStudents} Alunos',
@@ -551,7 +590,8 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                             vertical: 8,
                           ),
                           itemCount: trip.stops.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 8),
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final stop = trip.stops[index];
                             return _buildStopTile(index + 1, stop);
@@ -560,18 +600,37 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                       ),
                       Padding(
                         padding: const EdgeInsets.all(16),
-                        child: isCompleted
+                        child: isCancelled
+                            ? _buildStateBanner(
+                                'Viagem Cancelada',
+                                Icons.cancel_rounded,
+                                AppColors.errorRed,
+                              )
+                            : !isCompleted && !canOperate
+                            ? Text(
+                                'Somente o motorista designado pode operar esta viagem.',
+                                textAlign: TextAlign.center,
+                                style: AppTextStyles.bodySmall.copyWith(
+                                  color: AppColors.textMuted,
+                                ),
+                              )
+                            : isCompleted
                             ? Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
-                                  color: AppColors.successGreen.withValues(alpha: 0.15),
+                                  color: AppColors.successGreen.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                                 child: const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.check_circle_rounded, color: AppColors.successGreen),
+                                    Icon(
+                                      Icons.check_circle_rounded,
+                                      color: AppColors.successGreen,
+                                    ),
                                     SizedBox(width: 8),
                                     Text(
                                       'Viagem Concluída',
@@ -639,23 +698,27 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
               color: isDone
                   ? AppColors.successGreen
                   : isDestination
-                      ? AppColors.primaryNavy
-                      : AppColors.primaryOrange,
+                  ? AppColors.primaryNavy
+                  : AppColors.primaryOrange,
               shape: BoxShape.circle,
             ),
             child: Center(
               child: isDestination
-                  ? const Icon(Icons.school_rounded, color: Colors.white, size: 16)
+                  ? const Icon(
+                      Icons.school_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    )
                   : isDone
-                      ? const Icon(Icons.check, color: Colors.white, size: 16)
-                      : Text(
-                          '$order',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
+                  ? const Icon(Icons.check, color: Colors.white, size: 16)
+                  : Text(
+                      '$order',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 12),
@@ -670,11 +733,13 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                       stop.name,
                       style: AppTextStyles.bodyMedium.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: isDone ? AppColors.textMuted : AppColors.textDark,
+                        color: isDone
+                            ? AppColors.textMuted
+                            : AppColors.textDark,
                       ),
                     ),
                     Text(
-                      stop.scheduledTime,
+                      _stopStatusLabel(stop.status),
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.primaryOrangeDark,
                         fontWeight: FontWeight.bold,
@@ -692,6 +757,41 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// pt-BR label of a stop's operational state (empty while pending).
+  static String _stopStatusLabel(StopStatus status) => switch (status) {
+    StopStatus.pending => '',
+    StopStatus.boarded => 'Embarcou',
+    StopStatus.droppedOff => 'Desembarcou',
+    StopStatus.absent => 'Ausente',
+    StopStatus.reached => 'Concluída',
+  };
+
+  Widget _buildStateBanner(String text, IconData icon, Color color) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
           ),
         ],

@@ -7,13 +7,15 @@ The VanGo mobile client for school and university transport logistics. Built wit
 ## 1. Features Implemented
 
 ### 🚐 Driver Route & Live Van Telemetry
+- **Persisted service-day trips (Task #20):** "Minhas viagens" lists today's trips of every fleet where the user is `owner` or `driver` through `list_service_day`; the route screen receives a trip id and loads it through `get_trip`. Owners see every fleet trip read-only ("Ver viagem"); only the assigned driver (`driver_user_id`) gets "Iniciar viagem" / "Continuar viagem". Empty days and backend failures render real empty and retry states — there is no synthetic or fallback trip.
+- **Backend labels:** route name, van plate and passenger names come from the owner/driver `get_trip` projection (migration `20261003113739_extend_trip_projection_labels.sql`); stops keep the backend `position` order. Trips only exist after the daily operations job materializes them (Task #19).
+- **Pending (Task #21):** start, boarding/absence and finish still update the screen locally; they are not yet persisted through `start_trip` / `record_passenger_event` / `finish_trip`.
 - **Mapbox Vector Map & Routing:** High-resolution map tiles with traffic polyline rendering powered by Mapbox Directions API.
 - **Dual Location Tracking Modes (`DriverLocationService`):**
   - **GPS Real (`geolocator`):** Reads native hardware GPS sensors on mobile devices with foreground service support.
   - **Virtual Simulation:** Smoothly traverses the polyline at ~35 km/h with live calculation of speed, progress, and bearing. Allows end-to-end testing on web, emulators, and desktop.
 - **Azimuth & Heading Calculation:** Van marker dynamically rotates via spherical trigonometry (`atan2`) to point in the exact travel direction of the road.
 - **Intelligent Proximity Detection:** Calculates geodesic Haversine distance in real time. When the vehicle is within 50 meters of a student's pickup point, a floating banner alerts the driver with a quick action to register boarding.
-- **Trip Lifecycle:** Complete trip controls (Start Trip, Board Student, Mark Absent, Finish Trip at school).
 
 ### 🎓 Student / Guardian Marketplace & Registration
 - **Mapbox Address Autocomplete (`MapboxAddressAutocompleteField`):** Debounced real-time place search suggestions with coordinate extraction for precise student pickup and school locations.
@@ -56,7 +58,7 @@ MAPBOX_ACCESS_TOKEN=your_mapbox_public_token
    ```bash
    flutter run -d <device_id> --dart-define-from-file=.env
    ```
-5. Log in as a driver (`carlos.motorista@vango.com.br` / `Senha@123`), open the route, tap **"Iniciar Viagem"**, and grant location permission.
+5. Log in as the trip's assigned driver, open a trip from **"Minhas viagens"**, tap **"Começar Percurso"**, and grant location permission. The list is empty until the backend has materialized trips for today.
 
 ### Option B: Run on Desktop or Web (Virtual Simulation Mode)
 1. Run on Windows desktop:

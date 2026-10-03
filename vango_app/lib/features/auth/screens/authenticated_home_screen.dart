@@ -34,23 +34,107 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
   bool _isSigningOut = false;
   AccountRole? _selectedRole;
   String? _selectedFleetId;
-  late final DriverRouteService _driverRouteService;
-  DriverTrip? _driverTrip;
+  DriverRouteService? _driverRouteService;
+
+  // Service-day trips state: null list while loading; failure is explicit
+  // and never replaced by a fallback trip.
+  List<DriverTrip>? _driverTrips;
+  bool _driverTripsFailed = false;
 
   @override
   void initState() {
     super.initState();
     _selectedRole = _availableRoles.firstOrNull;
     _selectedFleetId = widget.accessContext.ownerFleetIds.singleOrNull;
-    _driverRouteService = widget.driverRouteService ?? DriverRouteService();
-    _loadDriverTrip();
+    if (widget.accessContext.accountRoles.contains(AccountRole.driver)) {
+      _loadDriverTrips();
+    }
   }
 
-  Future<void> _loadDriverTrip() async {
-    final trip = await _driverRouteService.getTodayTrip();
-    if (mounted) {
-      setState(() => _driverTrip = trip);
+  /// Fleets whose trips the user may read: owner (whole fleet) or driver.
+  List<String> get _operationalFleetIds =>
+      widget.accessContext.fleetAccess
+          .where(
+            (access) =>
+                access.roles.contains(AccountRole.owner) ||
+                access.roles.contains(AccountRole.driver),
+          )
+          .map((access) => access.fleetId)
+          .toSet()
+          .toList()
+        ..sort();
+
+  Future<void> _loadDriverTrips() async {
+    setState(() {
+      _driverTrips = null;
+      _driverTripsFailed = false;
+    });
+    final fleetIds = _operationalFleetIds;
+    try {
+      // Created lazily so screens without operational fleets never touch the
+      // Supabase client.
+      final trips = fleetIds.isEmpty
+          ? const <DriverTrip>[]
+          : await (_driverRouteService ??=
+                    widget.driverRouteService ?? DriverRouteService())
+                .listTrips(fleetIds: fleetIds, serviceDate: DateTime.now());
+      if (mounted) setState(() => _driverTrips = trips);
+    } catch (_) {
+      if (mounted) setState(() => _driverTripsFailed = true);
     }
+  }
+
+  Widget _buildDriverTrips() {
+    if (_driverTripsFailed) {
+      return Column(
+        children: [
+          Text(
+            'Não foi possível carregar suas viagens.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.errorRed),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: _loadDriverTrips,
+            child: const Text('Tentar novamente'),
+          ),
+        ],
+      );
+    }
+    final trips = _driverTrips;
+    if (trips == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primaryOrange),
+      );
+    }
+    if (trips.isEmpty) {
+      return Text(
+        'Nenhuma viagem para hoje',
+        textAlign: TextAlign.center,
+        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted),
+      );
+    }
+    final currentUserId = _driverRouteService?.currentUserId;
+    return Column(
+      children: [
+        for (final trip in trips) ...[
+          DriverTripCard(
+            trip: trip,
+            canOperate: trip.isOperableBy(currentUserId),
+            onOpen: () async {
+              await Navigator.pushNamed(
+                context,
+                AppRoutes.driverRoute,
+                arguments: trip.id,
+              );
+              // The route screen may have changed the trip; re-read it.
+              if (mounted) _loadDriverTrips();
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
   }
 
   @override
@@ -163,18 +247,12 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                         ),
                       ),
                     ],
-                    if (isDriver && _driverTrip != null) ...[
+                    if (isDriver &&
+                        widget.accessContext.accountRoles.contains(
+                          AccountRole.driver,
+                        )) ...[
                       const SizedBox(height: 24),
-                      DriverTripCard(
-                        trip: _driverTrip!,
-                        onViewRoute: () async {
-                          await Navigator.pushNamed(
-                            context,
-                            AppRoutes.driverRoute,
-                          );
-                          _loadDriverTrip();
-                        },
-                      ),
+                      _buildDriverTrips(),
                     ],
                     if (isFleetOwner) ...[
                       const SizedBox(height: 24),

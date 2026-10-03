@@ -94,13 +94,6 @@ class DriverActiveTripPanel extends StatelessWidget {
                     ),
                   ],
                 ),
-                Text(
-                  nextStop?.scheduledTime ?? '',
-                  style: AppTextStyles.bodyLarge.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryOrangeDark,
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -133,9 +126,7 @@ class DriverActiveTripPanel extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               '${trip.completedStudentsCount} de ${trip.totalStudents} alunos embarcados',
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.textMuted,
-              ),
+              style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
             ),
             const SizedBox(height: 20),
 
