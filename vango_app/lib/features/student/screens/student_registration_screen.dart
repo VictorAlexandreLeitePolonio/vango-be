@@ -143,14 +143,13 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Dados do Aluno',
-                      style: AppTextStyles.heading2,
-                    ),
+                    Text('Dados do Aluno', style: AppTextStyles.heading2),
                     const SizedBox(height: 6),
                     Text(
                       'Informe os dados e o endereço de embarque do aluno.',
-                      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted),
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -186,7 +185,9 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Digite para buscar com precisão no mapa do Mapbox.',
-                      style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     const SizedBox(height: 12),
 

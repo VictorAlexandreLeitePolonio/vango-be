@@ -20,33 +20,36 @@ void main() {
     expect(students.first.cityIbgeCode, '3550308');
   });
 
-  test('createMinorStudent adds student to local list and returns generated id', () async {
-    final service = StudentService();
+  test(
+    'createMinorStudent adds student to local list and returns generated id',
+    () async {
+      final service = StudentService();
 
-    final studentId = await service.createMinorStudent(
-      fullName: 'Enzo Gabriel Santos',
-      birthDate: '2015-08-20',
-      street: 'Alameda Campinas',
-      streetNumber: '400',
-      neighborhood: 'Jardins',
-      cityName: 'São Paulo',
-      cityIbgeCode: '3550308',
-      stateCode: 'SP',
-      postalCode: '01404-000',
-      latitude: -23.5680,
-      longitude: -46.6530,
-    );
+      final studentId = await service.createMinorStudent(
+        fullName: 'Enzo Gabriel Santos',
+        birthDate: '2015-08-20',
+        street: 'Alameda Campinas',
+        streetNumber: '400',
+        neighborhood: 'Jardins',
+        cityName: 'São Paulo',
+        cityIbgeCode: '3550308',
+        stateCode: 'SP',
+        postalCode: '01404-000',
+        latitude: -23.5680,
+        longitude: -46.6530,
+      );
 
-    expect(studentId.isNotEmpty, true);
+      expect(studentId.isNotEmpty, true);
 
-    final students = await service.getMyStudents();
-    expect(students.length, 1);
-    expect(students.first.fullName, 'Enzo Gabriel Santos');
-    expect(students.first.street, 'Alameda Campinas');
-    expect(students.first.streetNumber, '400');
-    expect(students.first.latitude, -23.5680);
-    expect(students.first.longitude, -46.6530);
-  });
+      final students = await service.getMyStudents();
+      expect(students.length, 1);
+      expect(students.first.fullName, 'Enzo Gabriel Santos');
+      expect(students.first.street, 'Alameda Campinas');
+      expect(students.first.streetNumber, '400');
+      expect(students.first.latitude, -23.5680);
+      expect(students.first.longitude, -46.6530);
+    },
+  );
 
   test('getAvailableVans returns active fleet vans', () async {
     final service = StudentService();

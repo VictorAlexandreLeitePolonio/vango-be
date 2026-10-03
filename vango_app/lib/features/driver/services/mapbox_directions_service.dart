@@ -20,11 +20,9 @@ class DirectionsResult {
 }
 
 class MapboxDirectionsService {
-  MapboxDirectionsService({
-    http.Client? client,
-    MapboxConfig? config,
-  })  : _client = client ?? http.Client(),
-        _config = config ?? const MapboxConfig.fromEnvironment();
+  MapboxDirectionsService({http.Client? client, MapboxConfig? config})
+    : _client = client ?? http.Client(),
+      _config = config ?? const MapboxConfig.fromEnvironment();
 
   final http.Client _client;
   final MapboxConfig _config;
@@ -41,7 +39,9 @@ class MapboxDirectionsService {
   }) async {
     if (_cache.containsKey(cacheKey)) {
       final cached = _cache[cacheKey]!;
-      debugPrint('[MapboxDirections] ⚡ Rota recuperada do CACHE LOCAL (0 requisições gastas na API).');
+      debugPrint(
+        '[MapboxDirections] ⚡ Rota recuperada do CACHE LOCAL (0 requisições gastas na API).',
+      );
       return DirectionsResult(
         polylinePoints: cached.polylinePoints,
         totalDistanceMeters: cached.totalDistanceMeters,
@@ -60,7 +60,10 @@ class MapboxDirectionsService {
 
     // Mapbox expects coordinates in longitude,latitude order separated by ';'
     final coordsParam = coordinates
-        .map((c) => '${c.longitude.toStringAsFixed(6)},${c.latitude.toStringAsFixed(6)}')
+        .map(
+          (c) =>
+              '${c.longitude.toStringAsFixed(6)},${c.latitude.toStringAsFixed(6)}',
+        )
         .join(';');
 
     final uri = Uri.parse(
@@ -68,12 +71,18 @@ class MapboxDirectionsService {
       '?geometries=geojson&overview=full&steps=false&access_token=${_config.accessToken}',
     );
 
-    debugPrint('[MapboxDirections] 🌐 Disparando requisição real para Mapbox Directions API...');
+    debugPrint(
+      '[MapboxDirections] 🌐 Disparando requisição real para Mapbox Directions API...',
+    );
 
     try {
-      final response = await _client.get(uri).timeout(const Duration(seconds: 8));
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 8));
 
-      debugPrint('[MapboxDirections] 📡 Resposta HTTP recebida: status ${response.statusCode}');
+      debugPrint(
+        '[MapboxDirections] 📡 Resposta HTTP recebida: status ${response.statusCode}',
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -81,8 +90,10 @@ class MapboxDirectionsService {
 
         if (routes != null && routes.isNotEmpty) {
           final primaryRoute = routes.first as Map<String, dynamic>;
-          final distance = (primaryRoute['distance'] as num?)?.toDouble() ?? 0.0;
-          final duration = (primaryRoute['duration'] as num?)?.toDouble() ?? 0.0;
+          final distance =
+              (primaryRoute['distance'] as num?)?.toDouble() ?? 0.0;
+          final duration =
+              (primaryRoute['duration'] as num?)?.toDouble() ?? 0.0;
 
           final geometry = primaryRoute['geometry'] as Map<String, dynamic>?;
           final coordsList = geometry?['coordinates'] as List<dynamic>?;
@@ -106,7 +117,9 @@ class MapboxDirectionsService {
           );
 
           final result = DirectionsResult(
-            polylinePoints: polylinePoints.isNotEmpty ? polylinePoints : coordinates,
+            polylinePoints: polylinePoints.isNotEmpty
+                ? polylinePoints
+                : coordinates,
             totalDistanceMeters: distance,
             totalDurationSeconds: duration,
             isFromCache: false,
@@ -117,11 +130,15 @@ class MapboxDirectionsService {
         }
       } else {
         // Status only: the body and URL echo stop coordinates (home addresses).
-        debugPrint('[MapboxDirections] ⚠️ API do Mapbox retornou status diferente de 200: ${response.statusCode}');
+        debugPrint(
+          '[MapboxDirections] ⚠️ API do Mapbox retornou status diferente de 200: ${response.statusCode}',
+        );
       }
     } catch (e) {
       // Type only: client exceptions embed the request URI (coordinates, token).
-      debugPrint('[MapboxDirections] ❌ Exceção na requisição do Mapbox: ${e.runtimeType}');
+      debugPrint(
+        '[MapboxDirections] ❌ Exceção na requisição do Mapbox: ${e.runtimeType}',
+      );
     }
 
     // No invented straight-line route or fixed duration: callers treat the
@@ -133,7 +150,6 @@ class MapboxDirectionsService {
   static void clearCache() {
     _cache.clear();
   }
-
 }
 
 /// Mapbox Directions could not produce a route (network error or non-200).

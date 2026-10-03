@@ -12,30 +12,33 @@ void main() {
     StudentService.resetLocalCache();
   });
 
-  testWidgets('renders marketplace available vans and their details', (tester) async {
+  testWidgets('renders marketplace available vans and their details', (
+    tester,
+  ) async {
     final studentService = StudentService();
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: VansMarketplaceScreen(studentService: studentService),
-      ),
+      MaterialApp(home: VansMarketplaceScreen(studentService: studentService)),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Vans Disponíveis'), findsOneWidget);
     expect(find.textContaining('Demo Fleet'), findsOneWidget);
     expect(find.textContaining('BRA-2E19'), findsOneWidget);
-    expect(find.textContaining('Colégio Objetivo - Campus Paraíso'), findsOneWidget);
+    expect(
+      find.textContaining('Colégio Objetivo - Campus Paraíso'),
+      findsOneWidget,
+    );
     expect(find.text('Desejo entrar nesta van'), findsOneWidget);
   });
 
-  testWidgets('opens join dialog and submits join request successfully', (tester) async {
+  testWidgets('opens join dialog and submits join request successfully', (
+    tester,
+  ) async {
     final studentService = StudentService();
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: VansMarketplaceScreen(studentService: studentService),
-      ),
+      MaterialApp(home: VansMarketplaceScreen(studentService: studentService)),
     );
     await tester.pumpAndSettle();
 
@@ -53,6 +56,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify success snackbar appears
-    expect(find.text('Solicitação enviada com sucesso ao dono da frota!'), findsOneWidget);
+    expect(
+      find.text('Solicitação enviada com sucesso ao dono da frota!'),
+      findsOneWidget,
+    );
   });
 }

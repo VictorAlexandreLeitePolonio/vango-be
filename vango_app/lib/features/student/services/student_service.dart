@@ -38,23 +38,28 @@ class StudentService {
 
     if (client != null && client.auth.currentUser != null) {
       try {
-        final result = await client.rpc('create_minor_student', params: {
-          'p_full_name': fullName.trim(),
-          'p_birth_date': birthDate.trim(),
-          'p_postal_code': postalCode.trim(),
-          'p_street': street.trim(),
-          'p_street_number': streetNumber.trim(),
-          'p_address_complement': null,
-          'p_neighborhood': neighborhood.trim(),
-          'p_city_name': cityName.trim(),
-          'p_city_ibge_code': cityIbgeCode.trim(),
-          'p_state_code': stateCode.trim(),
-          'p_latitude': latitude,
-          'p_longitude': longitude,
-        });
+        final result = await client.rpc(
+          'create_minor_student',
+          params: {
+            'p_full_name': fullName.trim(),
+            'p_birth_date': birthDate.trim(),
+            'p_postal_code': postalCode.trim(),
+            'p_street': street.trim(),
+            'p_street_number': streetNumber.trim(),
+            'p_address_complement': null,
+            'p_neighborhood': neighborhood.trim(),
+            'p_city_name': cityName.trim(),
+            'p_city_ibge_code': cityIbgeCode.trim(),
+            'p_state_code': stateCode.trim(),
+            'p_latitude': latitude,
+            'p_longitude': longitude,
+          },
+        );
         studentId = result.toString();
       } catch (e) {
-        debugPrint('[StudentService] RPC create_minor_student falhou ou simulando: $e');
+        debugPrint(
+          '[StudentService] RPC create_minor_student falhou ou simulando: $e',
+        );
         studentId = 'student-${DateTime.now().millisecondsSinceEpoch}';
       }
     } else {
@@ -135,7 +140,9 @@ class StudentService {
       try {
         final rows = await client
             .from('vans')
-            .select('id, plate, model, public_name, capacity, fleet_id, fleets(name)')
+            .select(
+              'id, plate, model, public_name, capacity, fleet_id, fleets(name)',
+            )
             .eq('status', 'active');
 
         if (rows.isNotEmpty) {
@@ -144,11 +151,14 @@ class StudentService {
             final fleet = row['fleets'] as Map<String, dynamic>?;
             list.add(
               AvailableVanFleet(
-                fleetId: row['fleet_id'] as String? ?? '51000000-0000-0000-0000-000000000001',
+                fleetId:
+                    row['fleet_id'] as String? ??
+                    '51000000-0000-0000-0000-000000000001',
                 fleetName: fleet?['name'] as String? ?? 'Demo Fleet',
                 vanPlate: row['plate'] as String? ?? 'BRA-2E19',
                 vanModel: row['model'] as String? ?? 'Mercedes-Benz Sprinter',
-                vanPublicName: row['public_name'] as String? ?? 'Van 01 - Zona Sul',
+                vanPublicName:
+                    row['public_name'] as String? ?? 'Van 01 - Zona Sul',
                 capacity: (row['capacity'] as num?)?.toInt() ?? 20,
                 schoolId: '60000000-0000-0000-0000-000000000001',
                 schoolName: 'Colégio Objetivo - Campus Paraíso',
@@ -186,18 +196,25 @@ class StudentService {
     final client = _client;
     if (client != null && client.auth.currentUser != null) {
       try {
-        await client.rpc('submit_fleet_join_request', params: {
-          'p_fleet_id': fleetId,
-          'p_student_id': studentId,
-          'p_school_id': schoolId,
-          'p_shift': shift,
-          'p_directions': ['going', 'return'],
-          'p_weekdays': [1, 2, 3, 4, 5],
-        });
-        debugPrint('[StudentService] ✅ RPC submit_fleet_join_request executada com sucesso!');
+        await client.rpc(
+          'submit_fleet_join_request',
+          params: {
+            'p_fleet_id': fleetId,
+            'p_student_id': studentId,
+            'p_school_id': schoolId,
+            'p_shift': shift,
+            'p_directions': ['going', 'return'],
+            'p_weekdays': [1, 2, 3, 4, 5],
+          },
+        );
+        debugPrint(
+          '[StudentService] ✅ RPC submit_fleet_join_request executada com sucesso!',
+        );
         return;
       } catch (e) {
-        debugPrint('[StudentService] ⚠️ RPC submit_fleet_join_request retornou: $e');
+        debugPrint(
+          '[StudentService] ⚠️ RPC submit_fleet_join_request retornou: $e',
+        );
         // Se já existir ou erro de constraint em mock, não travar
       }
     }

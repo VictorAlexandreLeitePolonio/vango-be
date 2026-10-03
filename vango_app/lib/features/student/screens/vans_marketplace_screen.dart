@@ -9,10 +9,7 @@ import '../services/student_service.dart';
 import '../widgets/join_request_dialog.dart';
 
 class VansMarketplaceScreen extends StatefulWidget {
-  const VansMarketplaceScreen({
-    super.key,
-    this.studentService,
-  });
+  const VansMarketplaceScreen({super.key, this.studentService});
 
   final StudentService? studentService;
 
@@ -49,7 +46,9 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
     if (_students.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Cadastre um aluno antes de solicitar vaga na van.'),
+          content: const Text(
+            'Cadastre um aluno antes de solicitar vaga na van.',
+          ),
           backgroundColor: AppColors.primaryOrangeDark,
           action: SnackBarAction(
             label: 'Cadastrar',
@@ -192,7 +191,9 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                          color: AppColors.primaryOrange.withValues(
+                            alpha: 0.12,
+                          ),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: const Icon(
@@ -208,7 +209,9 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
                           children: [
                             Text(
                               van.vanPublicName,
-                              style: AppTextStyles.heading3.copyWith(fontSize: 18),
+                              style: AppTextStyles.heading3.copyWith(
+                                fontSize: 18,
+                              ),
                             ),
                             Text(
                               '${van.vanModel} • Placa ${van.vanPlate}',
@@ -224,7 +227,10 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.successGreen.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
@@ -247,18 +253,30 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
             // Frota e Escola
             Row(
               children: [
-                const Icon(Icons.business_outlined, size: 16, color: AppColors.textMuted),
+                const Icon(
+                  Icons.business_outlined,
+                  size: 16,
+                  color: AppColors.textMuted,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'Frota: ${van.fleetName}',
-                  style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600),
+                  style: AppTextStyles.bodySmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const Spacer(),
-                const Icon(Icons.airline_seat_recline_normal_rounded, size: 16, color: AppColors.textMuted),
+                const Icon(
+                  Icons.airline_seat_recline_normal_rounded,
+                  size: 16,
+                  color: AppColors.textMuted,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   '${van.capacity} lugares',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -266,7 +284,11 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
 
             Row(
               children: [
-                const Icon(Icons.school_outlined, size: 16, color: AppColors.primaryOrangeDark),
+                const Icon(
+                  Icons.school_outlined,
+                  size: 16,
+                  color: AppColors.primaryOrangeDark,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
