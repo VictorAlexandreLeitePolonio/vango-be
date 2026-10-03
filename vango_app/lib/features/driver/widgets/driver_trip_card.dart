@@ -3,21 +3,50 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../models/driver_trip.dart';
+import '../models/route_stop.dart';
 
+/// Summary card of one persisted service-day trip.
+///
+/// [canOperate] is true only for the assigned driver of a non-terminal trip;
+/// everyone else (e.g. the fleet owner) gets a read-only "Ver viagem" action.
 class DriverTripCard extends StatelessWidget {
   const DriverTripCard({
     super.key,
     required this.trip,
-    required this.onViewRoute,
+    required this.canOperate,
+    required this.onOpen,
   });
 
   final DriverTrip trip;
-  final VoidCallback onViewRoute;
+  final bool canOperate;
+  final VoidCallback onOpen;
+
+  /// pt-BR label for each backend trip state.
+  static String statusLabel(TripStatus status) => switch (status) {
+    TripStatus.scheduled => 'Agendada',
+    TripStatus.confirmationClosed => 'Confirmações encerradas',
+    TripStatus.active => 'Em andamento',
+    TripStatus.completed => 'Concluída',
+    TripStatus.cancelled => 'Cancelada',
+  };
+
+  String get _actionLabel {
+    if (!canOperate) return 'Ver viagem';
+    return trip.status == TripStatus.active
+        ? 'Continuar viagem'
+        : 'Iniciar viagem';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isTripActive = trip.status == TripStatus.inProgress;
-    final isTripCompleted = trip.status == TripStatus.completed;
+    final isTripActive = trip.status == TripStatus.active;
+    final local = trip.plannedStartAt.toLocal();
+    final startTime =
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+    final schoolCount = trip.stops
+        .where((s) => s.kind == StopKind.school)
+        .length;
 
     return Container(
       decoration: BoxDecoration(
@@ -47,7 +76,10 @@ class DriverTripCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primaryGold.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(20),
@@ -62,7 +94,7 @@ class DriverTripCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        'Hoje • ${trip.shift}',
+                        'Hoje • $startTime',
                         style: AppTextStyles.caption.copyWith(
                           color: AppColors.primaryOrangeDark,
                           fontWeight: FontWeight.bold,
@@ -71,16 +103,13 @@ class DriverTripCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _buildStatusBadge(isTripActive, isTripCompleted),
+                _buildStatusBadge(trip.status),
               ],
             ),
             const SizedBox(height: 14),
 
             // Title and Van info
-            Text(
-              trip.title,
-              style: AppTextStyles.heading3,
-            ),
+            Text(trip.routeName, style: AppTextStyles.heading3),
             const SizedBox(height: 6),
             Row(
               children: [
@@ -120,8 +149,8 @@ class DriverTripCard extends StatelessWidget {
                 ),
                 _buildMetric(
                   icon: Icons.school_outlined,
-                  value: '1',
-                  label: 'Destino',
+                  value: '$schoolCount',
+                  label: schoolCount == 1 ? 'Escola' : 'Escolas',
                 ),
                 Container(
                   width: 1,
@@ -130,9 +159,7 @@ class DriverTripCard extends StatelessWidget {
                 ),
                 _buildMetric(
                   icon: Icons.route_outlined,
-                  value: trip.formattedDistance != '-- km'
-                      ? trip.formattedDistance
-                      : '~7.4 km',
+                  value: trip.formattedDistance,
                   label: 'Distância',
                 ),
               ],
@@ -156,14 +183,14 @@ class DriverTripCard extends StatelessWidget {
                   ],
                 ),
                 child: ElevatedButton.icon(
-                  onPressed: onViewRoute,
+                  onPressed: onOpen,
                   icon: const Icon(
                     Icons.map_rounded,
                     color: Colors.white,
                     size: 20,
                   ),
                   label: Text(
-                    isTripActive ? 'Continuar Percurso' : 'Ver rota do dia',
+                    _actionLabel,
                     style: AppTextStyles.buttonLarge.copyWith(
                       color: Colors.white,
                       fontSize: 16,
@@ -185,65 +212,35 @@ class DriverTripCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusBadge(bool isActive, bool isCompleted) {
-    if (isActive) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.primaryOrange.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: AppColors.primaryOrange,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'Em andamento',
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.primaryOrangeDark,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (isCompleted) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.successGreen.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          'Concluída',
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.successGreen,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      );
-    }
-
+  Widget _buildStatusBadge(TripStatus status) {
+    final (background, foreground) = switch (status) {
+      TripStatus.active => (
+        AppColors.primaryOrange.withValues(alpha: 0.15),
+        AppColors.primaryOrangeDark,
+      ),
+      TripStatus.completed => (
+        AppColors.successGreen.withValues(alpha: 0.15),
+        AppColors.successGreen,
+      ),
+      TripStatus.cancelled => (
+        AppColors.errorRed.withValues(alpha: 0.15),
+        AppColors.errorRed,
+      ),
+      TripStatus.scheduled || TripStatus.confirmationClosed => (
+        AppColors.inputBorder.withValues(alpha: 0.5),
+        AppColors.textMuted,
+      ),
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.inputBorder.withValues(alpha: 0.5),
+        color: background,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        'Agendada',
+        statusLabel(status),
         style: AppTextStyles.caption.copyWith(
-          color: AppColors.textMuted,
+          color: foreground,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -275,9 +272,7 @@ class DriverTripCard extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.textMuted,
-          ),
+          style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
         ),
       ],
     );

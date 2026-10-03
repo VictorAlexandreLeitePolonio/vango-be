@@ -58,7 +58,6 @@ class VanTelemetryUpdate {
 class DriverLocationService {
   DriverLocationService();
 
-
   final _telemetryController = StreamController<VanTelemetryUpdate>.broadcast();
   Stream<VanTelemetryUpdate> get telemetryStream => _telemetryController.stream;
 
@@ -82,7 +81,9 @@ class DriverLocationService {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        debugPrint('[DriverLocation] ⚠️ Serviços de localização desativados no dispositivo.');
+        debugPrint(
+          '[DriverLocation] ⚠️ Serviços de localização desativados no dispositivo.',
+        );
         return false;
       }
 
@@ -90,13 +91,17 @@ class DriverLocationService {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          debugPrint('[DriverLocation] ⚠️ Permissão de localização negada pelo usuário.');
+          debugPrint(
+            '[DriverLocation] ⚠️ Permissão de localização negada pelo usuário.',
+          );
           return false;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        debugPrint('[DriverLocation] ⚠️ Permissão de localização negada permanentemente.');
+        debugPrint(
+          '[DriverLocation] ⚠️ Permissão de localização negada permanentemente.',
+        );
         return false;
       }
 
@@ -123,7 +128,9 @@ class DriverLocationService {
     if (_mode == LocationTrackingMode.deviceGps) {
       final granted = await checkAndRequestPermissions();
       if (!granted) {
-        debugPrint('[DriverLocation] 🔄 Sem permissão GPS nativa. Alternando para modo Simulação.');
+        debugPrint(
+          '[DriverLocation] 🔄 Sem permissão GPS nativa. Alternando para modo Simulação.',
+        );
         _mode = LocationTrackingMode.simulation;
         _startSimulation();
         return;
@@ -194,22 +201,21 @@ class DriverLocationService {
       distanceFilter: 5, // Emits an update every 5 meters travelled
     );
 
-    _gpsSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen(
-      (Position position) {
-        final latLng = LatLng(position.latitude, position.longitude);
-        final heading = position.heading.isFinite && position.heading >= 0
-            ? position.heading
-            : (_latestTelemetry?.headingDegrees ?? 0.0);
-        final speedKmh = position.speed >= 0 ? position.speed * 3.6 : 0.0;
+    _gpsSubscription =
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (Position position) {
+            final latLng = LatLng(position.latitude, position.longitude);
+            final heading = position.heading.isFinite && position.heading >= 0
+                ? position.heading
+                : (_latestTelemetry?.headingDegrees ?? 0.0);
+            final speedKmh = position.speed >= 0 ? position.speed * 3.6 : 0.0;
 
-        _evaluateProximityAndEmit(latLng, heading, speedKmh);
-      },
-      onError: (error) {
-        debugPrint('[DriverLocation] ❌ Erro no stream de GPS: $error');
-      },
-    );
+            _evaluateProximityAndEmit(latLng, heading, speedKmh);
+          },
+          onError: (error) {
+            debugPrint('[DriverLocation] ❌ Erro no stream de GPS: $error');
+          },
+        );
   }
 
   /// Evaluates geodesic proximity to the next pending stop.
@@ -223,14 +229,18 @@ class DriverLocationService {
     double? minDistance;
     RouteStop? nextStop;
 
-    if (_pendingStops.isNotEmpty) {
-      nextStop = _pendingStops.first;
-      final stopPos = LatLng(nextStop.latitude, nextStop.longitude);
+    // Proximity targets the next pending stop that has coordinates; schools
+    // registered without coordinates are skipped rather than blocking alerts.
+    nextStop = _pendingStops.where((s) => s.hasCoordinates).firstOrNull;
+    if (nextStop != null) {
+      final stopPos = LatLng(nextStop.latitude!, nextStop.longitude!);
       minDistance = calculateDistanceMeters(currentPos, stopPos);
     }
 
     // Stop approaching trigger (< 50 meters)
-    final approaching = (minDistance != null && minDistance < 50.0) ? nextStop : null;
+    final approaching = (minDistance != null && minDistance < 50.0)
+        ? nextStop
+        : null;
 
     final telemetry = VanTelemetryUpdate(
       position: currentPos,
@@ -273,7 +283,8 @@ class DriverLocationService {
 
     final dLng = endLng - startLng;
     final y = math.sin(dLng) * math.cos(endLat);
-    final x = math.cos(startLat) * math.sin(endLat) -
+    final x =
+        math.cos(startLat) * math.sin(endLat) -
         math.sin(startLat) * math.cos(endLat) * math.cos(dLng);
 
     final bearingRad = math.atan2(y, x);
@@ -286,6 +297,8 @@ class DriverLocationService {
     return distance.as(LengthUnit.Meter, p1, p2);
   }
 
-  static double _degreesToRadians(double degrees) => degrees * (math.pi / 180.0);
-  static double _radiansToDegrees(double radians) => radians * (180.0 / math.pi);
+  static double _degreesToRadians(double degrees) =>
+      degrees * (math.pi / 180.0);
+  static double _radiansToDegrees(double radians) =>
+      radians * (180.0 / math.pi);
 }

@@ -42,7 +42,13 @@ class AppRoutes {
         ResetPasswordScreen(authService: authService ?? SupabaseAuthService()),
     authenticatedHome: (_) =>
         AuthGate(authService: authService ?? SupabaseAuthService()),
-    driverRoute: (_) => const DriverRouteScreen(),
+    driverRoute: (context) {
+      final tripId = ModalRoute.of(context)?.settings.arguments;
+      if (tripId is! String || tripId.trim().isEmpty) {
+        return const Scaffold(body: Center(child: Text('Viagem indisponível')));
+      }
+      return DriverRouteScreen(tripId: tripId);
+    },
     studentRegister: (_) => const StudentRegistrationScreen(),
     vansMarketplace: (_) => const VansMarketplaceScreen(),
     fleetPlanning: (context) {
