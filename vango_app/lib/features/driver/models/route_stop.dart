@@ -1,6 +1,18 @@
 /// Backend `trip_stops.kind` values.
 enum StopKind { origin, home, school, destination }
 
+/// Backend `record_passenger_event` kinds for the trip lifecycle.
+enum PassengerEventKind {
+  boarded('boarded'),
+  absent('absent'),
+  droppedOff('dropped_off');
+
+  const PassengerEventKind(this.backend);
+
+  /// Exact backend string sent in the RPC payload.
+  final String backend;
+}
+
 /// Operational state of a stop.
 ///
 /// Home stops mirror the passenger `operation_status`; origin, school and
@@ -41,18 +53,4 @@ class RouteStop {
 
   bool get isSchoolDestination =>
       kind == StopKind.school || kind == StopKind.destination;
-
-  RouteStop copyWith({StopStatus? status}) {
-    return RouteStop(
-      id: id,
-      kind: kind,
-      position: position,
-      name: name,
-      address: address,
-      latitude: latitude,
-      longitude: longitude,
-      studentId: studentId,
-      status: status ?? this.status,
-    );
-  }
 }

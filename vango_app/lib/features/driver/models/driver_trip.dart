@@ -144,6 +144,61 @@ class DriverTrip {
   List<RouteStop> get mappableStops =>
       stops.where((s) => s.hasCoordinates).toList();
 
+  /// True when home stops come before the school stop (going direction);
+  /// trips without home stops are treated as outbound.
+  bool get isOutbound {
+    final firstHome = stops.where((s) => s.kind == StopKind.home).firstOrNull;
+    final school = schoolStop;
+    if (firstHome == null || school == null) return true;
+    return firstHome.position < school.position;
+  }
+
+  /// The first school stop, when the trip has one.
+  RouteStop? get schoolStop {
+    for (final stop in stops) {
+      if (stop.kind == StopKind.school) return stop;
+    }
+    return null;
+  }
+
+  /// The stop the driver must act on next; origin and destination are never
+  /// action stops (the MVP does not mark them).
+  ///
+  /// Outbound: the first still-pending home stop, then the school. Return:
+  /// the school, then the first boarded home stop waiting for drop-off.
+  RouteStop? get nextActionStop {
+    if (!isOutbound) {
+      final school = schoolStop;
+      if (school != null && school.status != StopStatus.reached) return school;
+      for (final stop in stops) {
+        if (stop.kind == StopKind.home && stop.status == StopStatus.boarded) {
+          return stop;
+        }
+      }
+      return null;
+    }
+    for (final stop in stops) {
+      if (stop.kind == StopKind.home && stop.status == StopStatus.pending) {
+        return stop;
+      }
+    }
+    final school = schoolStop;
+    if (school != null && school.status != StopStatus.reached) return school;
+    return null;
+  }
+
+  /// True when the trip is active and every home stop is resolved as a
+  /// drop-off or an absence.
+  bool get canFinish =>
+      status == TripStatus.active &&
+      stops
+          .where((s) => s.kind == StopKind.home)
+          .every(
+            (s) =>
+                s.status == StopStatus.droppedOff ||
+                s.status == StopStatus.absent,
+          );
+
   int get totalStudents => stops.where((s) => s.kind == StopKind.home).length;
 
   int get completedStudentsCount =>

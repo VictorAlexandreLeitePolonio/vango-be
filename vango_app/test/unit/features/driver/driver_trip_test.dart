@@ -239,4 +239,217 @@ void main() {
       }
     });
   });
+
+  group('DriverTrip lifecycle getters', () {
+    test('outbound trips act on the first pending home stop', () {
+      final trip = DriverTrip.fromProjection(tripProjection(status: 'active'));
+
+      expect(trip.isOutbound, isTrue);
+      expect(trip.schoolStop?.id, 's-school');
+      expect(trip.nextActionStop?.id, 's-home');
+    });
+
+    test('trips without home stops are outbound', () {
+      final trip = DriverTrip.fromProjection(
+        tripProjection(status: 'active', passengers: const []),
+      );
+
+      expect(trip.isOutbound, isTrue);
+      expect(trip.nextActionStop?.id, 's-school');
+    });
+
+    test('outbound school is the next action once every student boarded', () {
+      final trip = DriverTrip.fromProjection(
+        tripProjection(
+          status: 'active',
+          passengers: [
+            {
+              'id': 'p-1',
+              'student_id': 'student-1',
+              'student_full_name': 'Ana Souza',
+              'confirmation_status': 'confirmed',
+              'operation_status': 'boarded',
+              'removed_at': null,
+            },
+          ],
+        ),
+      );
+
+      expect(trip.nextActionStop?.id, 's-school');
+    });
+
+    test('outbound trips expose no action after the school is reached', () {
+      final trip = DriverTrip.fromProjection(
+        tripProjection(
+          status: 'active',
+          stops: [
+            {
+              'id': 's-origin',
+              'kind': 'origin',
+              'position': 1,
+              'address_snapshot': {'label': 'Garagem'},
+              'reached_at': null,
+            },
+            {
+              'id': 's-home',
+              'kind': 'home',
+              'student_id': 'student-1',
+              'position': 1000,
+              'address_snapshot': {'street': 'Rua A'},
+              'reached_at': null,
+            },
+            {
+              'id': 's-school',
+              'kind': 'school',
+              'school_id': 'school-1',
+              'position': 100001,
+              'address_snapshot': {'name': 'Colégio'},
+              'reached_at': '2026-10-05T10:00:00+00:00',
+            },
+          ],
+          passengers: [
+            {
+              'id': 'p-1',
+              'student_id': 'student-1',
+              'student_full_name': 'Ana Souza',
+              'confirmation_status': 'confirmed',
+              'operation_status': 'boarded',
+              'removed_at': null,
+            },
+          ],
+        ),
+      );
+
+      // The pending origin is never an action stop.
+      expect(trip.nextActionStop, isNull);
+    });
+
+    test('return trips act on the school before any home stop', () {
+      final trip = DriverTrip.fromProjection(
+        tripProjection(
+          status: 'active',
+          stops: [
+            {
+              'id': 's-school',
+              'kind': 'school',
+              'school_id': 'school-1',
+              'position': 1000,
+              'address_snapshot': {'name': 'Colégio'},
+              'reached_at': null,
+            },
+            {
+              'id': 's-home',
+              'kind': 'home',
+              'student_id': 'student-1',
+              'position': 100001,
+              'address_snapshot': {'street': 'Rua A'},
+              'reached_at': null,
+            },
+          ],
+        ),
+      );
+
+      expect(trip.isOutbound, isFalse);
+      expect(trip.nextActionStop?.id, 's-school');
+    });
+
+    test('return drop off targets the first boarded home stop', () {
+      final trip = DriverTrip.fromProjection(
+        tripProjection(
+          status: 'active',
+          stops: [
+            {
+              'id': 's-school',
+              'kind': 'school',
+              'school_id': 'school-1',
+              'position': 1000,
+              'address_snapshot': {'name': 'Colégio'},
+              'reached_at': '2026-10-05T16:05:00+00:00',
+            },
+            {
+              'id': 's-home-2',
+              'kind': 'home',
+              'student_id': 'student-2',
+              'position': 100001,
+              'address_snapshot': {'street': 'Rua B'},
+              'reached_at': null,
+            },
+            {
+              'id': 's-home-1',
+              'kind': 'home',
+              'student_id': 'student-1',
+              'position': 100002,
+              'address_snapshot': {'street': 'Rua A'},
+              'reached_at': null,
+            },
+          ],
+          passengers: [
+            {
+              'id': 'p-1',
+              'student_id': 'student-1',
+              'student_full_name': 'Ana Souza',
+              'confirmation_status': 'confirmed',
+              'operation_status': 'boarded',
+              'removed_at': null,
+            },
+            {
+              'id': 'p-2',
+              'student_id': 'student-2',
+              'student_full_name': 'Beto Lima',
+              'confirmation_status': 'confirmed',
+              'operation_status': 'dropped_off',
+              'removed_at': null,
+            },
+          ],
+        ),
+      );
+
+      expect(trip.nextActionStop?.id, 's-home-1');
+    });
+
+    test('canFinish requires an active trip with every home stop resolved', () {
+      final stops = [
+        {
+          'id': 's-home',
+          'kind': 'home',
+          'student_id': 'student-1',
+          'position': 1000,
+          'address_snapshot': {'street': 'Rua A'},
+          'reached_at': null,
+        },
+      ];
+      DriverTrip tripFor({
+        String status = 'active',
+        required String operationStatus,
+      }) => DriverTrip.fromProjection(
+        tripProjection(
+          status: status,
+          stops: stops,
+          passengers: [
+            {
+              'id': 'p-1',
+              'student_id': 'student-1',
+              'student_full_name': 'Ana Souza',
+              'confirmation_status': 'confirmed',
+              'operation_status': operationStatus,
+              'removed_at': null,
+            },
+          ],
+        ),
+      );
+
+      expect(tripFor(operationStatus: 'dropped_off').canFinish, isTrue);
+      expect(tripFor(operationStatus: 'absent').canFinish, isTrue);
+      expect(tripFor(operationStatus: 'boarded').canFinish, isFalse);
+      expect(tripFor(operationStatus: 'waiting').canFinish, isFalse);
+      expect(
+        tripFor(status: 'completed', operationStatus: 'dropped_off').canFinish,
+        isFalse,
+      );
+      expect(
+        tripFor(status: 'scheduled', operationStatus: 'dropped_off').canFinish,
+        isFalse,
+      );
+    });
+  });
 }

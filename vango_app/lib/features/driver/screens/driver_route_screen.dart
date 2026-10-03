@@ -7,8 +7,10 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/vango_button.dart';
 import '../models/driver_trip.dart';
 import '../models/route_stop.dart';
+import '../models/trip_command_ledger.dart';
 import '../services/driver_location_service.dart';
 import '../services/driver_route_service.dart';
+import '../services/trip_command_error_mapper.dart';
 import '../widgets/driver_active_trip_panel.dart';
 import '../widgets/mapbox_route_map.dart';
 
@@ -44,6 +46,13 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
   DriverTrip? _trip;
   bool _isLoading = true;
   String? _errorMessage;
+
+  /// Remembers command ids of actions whose outcome is unknown so a retry
+  /// reuses them (backend idempotency).
+  final _ledger = TripCommandLedger();
+
+  /// True while a backend command is in flight; action buttons disable.
+  bool _isSubmitting = false;
 
   LatLng? _liveVanPos;
   double _vanHeading = 0.0;
@@ -108,91 +117,306 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
     });
   }
 
-  Future<void> _handleStartTrip() async {
-    final updatedTrip = await _routeService.startTrip();
-    if (!mounted) return;
-    setState(() => _trip = updatedTrip);
+  /// Runs one logical action; [steps] are (actionKey, command) pairs executed
+  /// in order. Definitive outcomes drop the command id; uncertain outcomes
+  /// keep it pending so [retry] (the same handler) reuses it.
+  Future<bool> _runCommands(
+    List<(String, Future<DriverTrip> Function(String commandId))> steps, {
+    required String successMessage,
+    required VoidCallback retry,
+  }) async {
+    if (steps.isEmpty || _isSubmitting) return false;
+    setState(() => _isSubmitting = true);
+    try {
+      var latest = _trip;
+      for (final (actionKey, command) in steps) {
+        final commandId = _ledger.idFor(actionKey);
+        try {
+          latest = await command(commandId);
+          _ledger.resolve(actionKey);
+        } catch (error) {
+          switch (TripCommandErrorMapper.kind(error)) {
+            case TripCommandFailure.rejected:
+            case TripCommandFailure.accessLost:
+              // Definitive rejection: drop the id and show the mapped message.
+              _ledger.resolve(actionKey);
+              await _reloadTrip();
+              if (!mounted) return false;
+              _showSnack(
+                TripCommandErrorMapper.message(error),
+                AppColors.errorRed,
+              );
+              return false;
+            case TripCommandFailure.uncertain:
+              // The write may have committed: reload and check the projection.
+              final reloaded = await _reloadTrip();
+              if (!mounted) return false;
+              if (reloaded != null && _isStepApplied(actionKey, reloaded)) {
+                _ledger.resolve(actionKey);
+                latest = reloaded;
+                continue;
+              }
+              if (reloaded != null) setState(() => _trip = reloaded);
+              _showUncertainSnack(retry);
+              return false;
+          }
+        }
+      }
+      if (!mounted) return false;
+      setState(() => _trip = latest);
+      _showSnack(successMessage, AppColors.successGreen);
+      return true;
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
 
-    if (updatedTrip.polylinePoints.isNotEmpty) {
+  /// Reloads the persisted trip without surfacing errors (best effort).
+  Future<DriverTrip?> _reloadTrip() async {
+    try {
+      return await _routeService.getTrip(widget.tripId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Whether [actionKey] already appears applied on the reloaded [trip].
+  bool _isStepApplied(String actionKey, DriverTrip trip) {
+    if (actionKey == 'start') return trip.status == TripStatus.active;
+    if (actionKey == 'finish') return trip.status == TripStatus.completed;
+    if (actionKey.startsWith('passenger:')) {
+      final parts = actionKey.split(':');
+      if (parts.length != 3) return false;
+      final status = switch (parts[2]) {
+        'boarded' => StopStatus.boarded,
+        'absent' => StopStatus.absent,
+        'dropped_off' => StopStatus.droppedOff,
+        _ => null,
+      };
+      if (status == null) return false;
+      return trip.stops.any(
+        (s) =>
+            s.kind == StopKind.home &&
+            s.studentId == parts[1] &&
+            s.status == status,
+      );
+    }
+    if (actionKey.startsWith('stop:')) {
+      final stopId = actionKey.substring('stop:'.length);
+      return trip.stops.any(
+        (s) => s.id == stopId && s.status == StopStatus.reached,
+      );
+    }
+    return false;
+  }
+
+  void _showSnack(String message, Color background) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: background,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showUncertainSnack(VoidCallback retry) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Não foi possível confirmar a ação. Tente novamente.',
+        ),
+        backgroundColor: AppColors.errorRed,
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(label: 'Tentar novamente', onPressed: retry),
+      ),
+    );
+  }
+
+  Future<void> _handleStartTrip() async {
+    final trip = _trip;
+    if (trip == null) return;
+    final ok = await _runCommands(
+      [('start', (commandId) => _routeService.startTrip(trip.id, commandId))],
+      successMessage: 'Viagem iniciada.',
+      retry: _handleStartTrip,
+    );
+    // Tracking only starts once the backend accepted the start.
+    if (!ok || !mounted) return;
+    // The command reload returns persisted state without geometry; refresh
+    // the route (best effort) so tracking follows the same polyline as today.
+    var geometry = _trip;
+    try {
+      geometry = await _routeService.calculateAndOptimizeRoute();
+    } catch (_) {}
+    if (!mounted) return;
+    if (geometry != null) setState(() => _trip = geometry);
+    if (geometry != null && geometry.polylinePoints.isNotEmpty) {
       _locationService.startTracking(
-        routePoints: updatedTrip.polylinePoints,
-        pendingStops: updatedTrip.pendingStops,
+        routePoints: geometry.polylinePoints,
+        pendingStops: geometry.pendingStops,
         mode: _selectedTrackingMode,
       );
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _selectedTrackingMode == LocationTrackingMode.deviceGps
-              ? 'Percurso iniciado! GPS nativo ativado.'
-              : 'Percurso iniciado! Simulação virtual ativada.',
-        ),
-        backgroundColor: AppColors.successGreen,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   Future<void> _handleBoardStop(RouteStop stop) async {
-    final updatedTrip = await _routeService.updateStopStatus(
-      stop.id,
-      StopStatus.boarded,
+    final trip = _trip;
+    final studentId = stop.studentId;
+    if (trip == null || studentId == null) return;
+    final ok = await _runCommands(
+      [
+        (
+          'passenger:$studentId:boarded',
+          (commandId) => _routeService.recordPassengerEvent(
+            trip.id,
+            studentId,
+            PassengerEventKind.boarded,
+            commandId,
+          ),
+        ),
+      ],
+      successMessage: 'Embarque de ${stop.name} registrado.',
+      retry: () => _handleBoardStop(stop),
     );
-    if (!mounted) return;
+    if (!ok || !mounted) return;
     setState(() {
-      _trip = updatedTrip;
-      if (_approachingStop?.id == stop.id) {
-        _approachingStop = null;
-      }
+      if (_approachingStop?.id == stop.id) _approachingStop = null;
     });
-    _locationService.updatePendingStops(updatedTrip.pendingStops);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Embarque de ${stop.name} confirmado!'),
-        backgroundColor: AppColors.primaryOrangeDark,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    _locationService.updatePendingStops(_trip!.pendingStops);
   }
 
   Future<void> _handleMarkAbsent(RouteStop stop) async {
-    final updatedTrip = await _routeService.updateStopStatus(
-      stop.id,
-      StopStatus.absent,
+    final trip = _trip;
+    final studentId = stop.studentId;
+    if (trip == null || studentId == null) return;
+    final ok = await _runCommands(
+      [
+        (
+          'passenger:$studentId:absent',
+          (commandId) => _routeService.recordPassengerEvent(
+            trip.id,
+            studentId,
+            PassengerEventKind.absent,
+            commandId,
+          ),
+        ),
+      ],
+      successMessage: '${stop.name} marcado como ausente.',
+      retry: () => _handleMarkAbsent(stop),
     );
-    if (!mounted) return;
+    if (!ok || !mounted) return;
     setState(() {
-      _trip = updatedTrip;
-      if (_approachingStop?.id == stop.id) {
-        _approachingStop = null;
-      }
+      if (_approachingStop?.id == stop.id) _approachingStop = null;
     });
-    _locationService.updatePendingStops(updatedTrip.pendingStops);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${stop.name} marcado como ausente.'),
-        backgroundColor: AppColors.warningYellow,
-        behavior: SnackBarBehavior.floating,
-      ),
+    _locationService.updatePendingStops(_trip!.pendingStops);
+  }
+
+  Future<void> _handleDropOff(RouteStop stop) async {
+    final trip = _trip;
+    final studentId = stop.studentId;
+    if (trip == null || studentId == null) return;
+    final ok = await _runCommands(
+      [
+        (
+          'passenger:$studentId:dropped_off',
+          (commandId) => _routeService.recordPassengerEvent(
+            trip.id,
+            studentId,
+            PassengerEventKind.droppedOff,
+            commandId,
+          ),
+        ),
+      ],
+      successMessage: 'Desembarque de ${stop.name} registrado.',
+      retry: () => _handleDropOff(stop),
+    );
+    if (!ok || !mounted) return;
+    setState(() {
+      if (_approachingStop?.id == stop.id) _approachingStop = null;
+    });
+    _locationService.updatePendingStops(_trip!.pendingStops);
+  }
+
+  /// Outbound: the school stop is reached, then every boarded student drops.
+  Future<void> _handleSchoolArrival() async {
+    final trip = _trip;
+    final school = trip?.schoolStop;
+    if (trip == null || school == null) return;
+    final steps = <(String, Future<DriverTrip> Function(String commandId))>[
+      if (school.status != StopStatus.reached)
+        (
+          'stop:${school.id}',
+          (commandId) =>
+              _routeService.markStopReached(trip.id, school.id, commandId),
+        ),
+      for (final home in trip.stops)
+        if (home.kind == StopKind.home &&
+            home.status == StopStatus.boarded &&
+            home.studentId != null)
+          (
+            'passenger:${home.studentId}:dropped_off',
+            (commandId) => _routeService.recordPassengerEvent(
+              trip.id,
+              home.studentId!,
+              PassengerEventKind.droppedOff,
+              commandId,
+            ),
+          ),
+    ];
+    await _runCommands(
+      steps,
+      successMessage: 'Chegada na escola registrada.',
+      retry: _handleSchoolArrival,
     );
   }
 
-  Future<void> _handleFinishTrip() async {
-    _locationService.stopTracking();
-    final updatedTrip = await _routeService.finishTrip();
-    if (!mounted) return;
-    setState(() {
-      _trip = updatedTrip;
-      _approachingStop = null;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Viagem finalizada com sucesso no destino escolar!'),
-        backgroundColor: AppColors.successGreen,
-        behavior: SnackBarBehavior.floating,
+  /// Return: the school stop is reached, then every waiting student boards.
+  Future<void> _handleSchoolBoarding() async {
+    final trip = _trip;
+    final school = trip?.schoolStop;
+    if (trip == null || school == null) return;
+    final steps = <(String, Future<DriverTrip> Function(String commandId))>[
+      (
+        'stop:${school.id}',
+        (commandId) =>
+            _routeService.markStopReached(trip.id, school.id, commandId),
       ),
+      for (final home in trip.stops)
+        if (home.kind == StopKind.home &&
+            home.status == StopStatus.pending &&
+            home.studentId != null)
+          (
+            'passenger:${home.studentId}:boarded',
+            (commandId) => _routeService.recordPassengerEvent(
+              trip.id,
+              home.studentId!,
+              PassengerEventKind.boarded,
+              commandId,
+            ),
+          ),
+    ];
+    final ok = await _runCommands(
+      steps,
+      successMessage: 'Embarque na escola registrado.',
+      retry: _handleSchoolBoarding,
     );
+    if (!ok || !mounted) return;
+    _locationService.updatePendingStops(_trip!.pendingStops);
+  }
+
+  Future<void> _handleFinishTrip() async {
+    final trip = _trip;
+    if (trip == null) return;
+    final ok = await _runCommands(
+      [('finish', (commandId) => _routeService.finishTrip(trip.id, commandId))],
+      successMessage: 'Viagem finalizada.',
+      retry: _handleFinishTrip,
+    );
+    // Tracking only stops once the backend accepted the finish.
+    if (!ok || !mounted) return;
+    setState(() => _approachingStop = null);
+    _locationService.stopTracking();
   }
 
   @override
@@ -505,26 +729,32 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                                 ],
                               ),
                             ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: AppColors.primaryOrangeDark,
-                                minimumSize: const Size(80, 36),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
+                            // Boarding is offered only for a still-pending
+                            // outbound home stop.
+                            if (trip.isOutbound &&
+                                _approachingStop!.kind == StopKind.home &&
+                                _approachingStop!.status == StopStatus.pending)
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: AppColors.primaryOrangeDark,
+                                  minimumSize: const Size(80, 36),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 8,
+                                onPressed: _isSubmitting
+                                    ? null
+                                    : () => _handleBoardStop(_approachingStop!),
+                                child: const Text(
+                                  'Embarcar',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
                               ),
-                              onPressed: () =>
-                                  _handleBoardStop(_approachingStop!),
-                              child: const Text(
-                                'Embarcar',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
                           ],
                         ),
                       ),
@@ -665,7 +895,11 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
               trip: trip,
               onBoardStop: _handleBoardStop,
               onMarkAbsent: _handleMarkAbsent,
+              onDropOff: _handleDropOff,
+              onSchoolArrival: _handleSchoolArrival,
+              onSchoolBoarding: _handleSchoolBoarding,
               onFinishTrip: _handleFinishTrip,
+              isBusy: _isSubmitting,
             ),
           ),
       ],

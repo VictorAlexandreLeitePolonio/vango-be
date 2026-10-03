@@ -54,11 +54,23 @@ class DriverRouteService {
   }
 
   /// Loads one authorized trip and makes it the current trip of this service.
+  ///
+  /// Reloading the same trip (after every lifecycle command) keeps the route
+  /// geometry already computed for it, so the map does not lose its polyline.
   Future<DriverTrip> getTrip(String tripId) async {
     final json = await _client.rpc('get_trip', params: {'p_trip_id': tripId});
     if (json is! Map) throw const FormatException('Invalid trip');
-    _currentTrip = DriverTrip.fromProjection(Map<String, dynamic>.from(json));
-    return _currentTrip!;
+    final previous = _currentTrip;
+    var trip = DriverTrip.fromProjection(Map<String, dynamic>.from(json));
+    if (previous != null && previous.id == trip.id) {
+      trip = trip.copyWith(
+        polylinePoints: previous.polylinePoints,
+        totalDistanceMeters: previous.totalDistanceMeters,
+        totalDurationSeconds: previous.totalDurationSeconds,
+      );
+    }
+    _currentTrip = trip;
+    return trip;
   }
 
   /// Calculates route geometry and duration via Mapbox for the loaded trip,
@@ -88,40 +100,63 @@ class DriverRouteService {
     return _currentTrip!;
   }
 
-  // The lifecycle methods below are still local-only; task 21 replaces them
-  // with the idempotent start_trip / record_passenger_event / finish_trip RPCs.
-
-  Future<DriverTrip> startTrip() async {
-    _currentTrip = _requireTrip().copyWith(status: TripStatus.active);
-    return _currentTrip!;
+  /// Starts the trip through the idempotent backend command and returns the
+  /// freshly loaded persisted trip.
+  Future<DriverTrip> startTrip(String tripId, String commandId) async {
+    await _client.rpc(
+      'start_trip',
+      params: {'p_trip_id': tripId, 'p_command_id': commandId},
+    );
+    return getTrip(tripId);
   }
 
-  Future<DriverTrip> updateStopStatus(
-    String stopId,
-    StopStatus newStatus,
+  /// Records one passenger lifecycle event through the backend command and
+  /// returns the freshly loaded persisted trip.
+  Future<DriverTrip> recordPassengerEvent(
+    String tripId,
+    String studentId,
+    PassengerEventKind kind,
+    String commandId,
   ) async {
-    final trip = _requireTrip();
-    _currentTrip = trip.copyWith(
-      stops: [
-        for (final stop in trip.stops)
-          stop.id == stopId ? stop.copyWith(status: newStatus) : stop,
-      ],
+    await _client.rpc(
+      'record_passenger_event',
+      params: {
+        'p_trip_id': tripId,
+        'p_student_id': studentId,
+        'p_kind': kind.backend,
+        'p_command_id': commandId,
+      },
     );
-    return _currentTrip!;
+    return getTrip(tripId);
   }
 
-  Future<DriverTrip> finishTrip() async {
-    final trip = _requireTrip();
-    _currentTrip = trip.copyWith(
-      status: TripStatus.completed,
-      stops: [
-        for (final stop in trip.stops)
-          stop.isSchoolDestination
-              ? stop.copyWith(status: StopStatus.reached)
-              : stop,
-      ],
+  /// Marks the van as arrived at one trip stop and returns the freshly loaded
+  /// persisted trip.
+  Future<DriverTrip> markStopReached(
+    String tripId,
+    String stopId,
+    String commandId,
+  ) async {
+    await _client.rpc(
+      'mark_trip_stop_reached',
+      params: {'p_stop_id': stopId, 'p_command_id': commandId},
     );
-    return _currentTrip!;
+    return getTrip(tripId);
+  }
+
+  /// Finishes the trip (no cancellation in the MVP) and returns the freshly
+  /// loaded persisted trip.
+  Future<DriverTrip> finishTrip(String tripId, String commandId) async {
+    await _client.rpc(
+      'finish_trip',
+      params: {
+        'p_trip_id': tripId,
+        'p_cancel': false,
+        'p_reason': null,
+        'p_command_id': commandId,
+      },
+    );
+    return getTrip(tripId);
   }
 
   DriverTrip _requireTrip() {

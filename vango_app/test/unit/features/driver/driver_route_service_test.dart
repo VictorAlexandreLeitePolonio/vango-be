@@ -148,6 +148,27 @@ void main() {
       },
     );
 
+    test('reloading the same trip keeps its computed route geometry', () async {
+      final client = await planningClient(
+        (request) async =>
+            jsonResponse(tripProjection(status: 'active'), request),
+      );
+      addTearDown(client.dispose);
+      final service = DriverRouteService(
+        client: client,
+        directionsService: FakeDirectionsService(),
+      );
+
+      await service.getTrip('trip-1');
+      final routed = await service.calculateAndOptimizeRoute();
+      final reloaded = await service.getTrip('trip-1');
+
+      expect(reloaded.polylinePoints, routed.polylinePoints);
+      expect(reloaded.polylinePoints, isNotEmpty);
+      expect(reloaded.totalDistanceMeters, 8500);
+      expect(reloaded.totalDurationSeconds, 1500);
+    });
+
     test(
       'exposes the authenticated user for operate permission checks',
       () async {
@@ -159,7 +180,7 @@ void main() {
     );
   });
 
-  group('route geometry and local lifecycle', () {
+  group('route geometry', () {
     Future<DriverRouteService> loadedService(
       FakeDirectionsService directions,
     ) async {
@@ -196,27 +217,148 @@ void main() {
         throwsStateError,
       );
     });
+  });
 
-    test('start, board and finish update the loaded trip', () async {
-      final service = await loadedService(FakeDirectionsService());
+  group('trip lifecycle commands', () {
+    test(
+      'startTrip sends the exact body and reloads the persisted trip',
+      () async {
+        final bodies = <String, Map<String, dynamic>>{};
+        final client = await planningClient((request) async {
+          final name = request.url.path.split('/').last;
+          bodies[name] = jsonDecode(request.body) as Map<String, dynamic>;
+          if (name == 'start_trip') return jsonResponse('active', request);
+          expect(name, 'get_trip');
+          return jsonResponse(tripProjection(status: 'active'), request);
+        });
+        addTearDown(client.dispose);
 
-      var trip = await service.startTrip();
+        final trip = await DriverRouteService(
+          client: client,
+        ).startTrip('trip-1', 'cmd-1');
+
+        expect(bodies['start_trip'], {
+          'p_trip_id': 'trip-1',
+          'p_command_id': 'cmd-1',
+        });
+        expect(bodies['get_trip'], {'p_trip_id': 'trip-1'});
+        expect(trip.status, TripStatus.active);
+      },
+    );
+
+    test('recordPassengerEvent sends the backend kind string', () async {
+      final bodies = <String, Map<String, dynamic>>{};
+      final client = await planningClient((request) async {
+        final name = request.url.path.split('/').last;
+        bodies[name] = jsonDecode(request.body) as Map<String, dynamic>;
+        if (name == 'record_passenger_event') {
+          return jsonResponse('boarded', request);
+        }
+        expect(name, 'get_trip');
+        return jsonResponse(tripProjection(status: 'active'), request);
+      });
+      addTearDown(client.dispose);
+
+      final trip = await DriverRouteService(client: client)
+          .recordPassengerEvent(
+            'trip-1',
+            'student-1',
+            PassengerEventKind.boarded,
+            'cmd-2',
+          );
+
+      expect(bodies['record_passenger_event'], {
+        'p_trip_id': 'trip-1',
+        'p_student_id': 'student-1',
+        'p_kind': 'boarded',
+        'p_command_id': 'cmd-2',
+      });
       expect(trip.status, TripStatus.active);
+    });
 
-      trip = await service.updateStopStatus('s-home', StopStatus.boarded);
-      expect(
-        trip.stops.firstWhere((s) => s.id == 's-home').status,
-        StopStatus.boarded,
-      );
+    test('every passenger kind maps to its backend string', () {
+      expect(PassengerEventKind.boarded.backend, 'boarded');
+      expect(PassengerEventKind.absent.backend, 'absent');
+      expect(PassengerEventKind.droppedOff.backend, 'dropped_off');
+    });
 
-      trip = await service.finishTrip();
-      expect(trip.status, TripStatus.completed);
-      expect(
-        trip.stops
-            .where((s) => s.isSchoolDestination)
-            .every((s) => s.isCompleted),
-        isTrue,
+    test('markStopReached sends only the stop id and the command', () async {
+      final bodies = <String, Map<String, dynamic>>{};
+      final client = await planningClient((request) async {
+        final name = request.url.path.split('/').last;
+        bodies[name] = jsonDecode(request.body) as Map<String, dynamic>;
+        if (name == 'mark_trip_stop_reached') {
+          return http.Response('', 200, headers: const {}, request: request);
+        }
+        expect(name, 'get_trip');
+        return jsonResponse(tripProjection(status: 'active'), request);
+      });
+      addTearDown(client.dispose);
+
+      final trip = await DriverRouteService(
+        client: client,
+      ).markStopReached('trip-1', 's-school', 'cmd-3');
+
+      expect(bodies['mark_trip_stop_reached'], {
+        'p_stop_id': 's-school',
+        'p_command_id': 'cmd-3',
+      });
+      expect(trip.status, TripStatus.active);
+    });
+
+    test(
+      'finishTrip sends cancel false, null reason and the command',
+      () async {
+        final bodies = <String, Map<String, dynamic>>{};
+        final client = await planningClient((request) async {
+          final name = request.url.path.split('/').last;
+          bodies[name] = jsonDecode(request.body) as Map<String, dynamic>;
+          if (name == 'finish_trip') return jsonResponse('completed', request);
+          expect(name, 'get_trip');
+          return jsonResponse(tripProjection(status: 'completed'), request);
+        });
+        addTearDown(client.dispose);
+
+        final trip = await DriverRouteService(
+          client: client,
+        ).finishTrip('trip-1', 'cmd-4');
+
+        expect(bodies['finish_trip'], {
+          'p_trip_id': 'trip-1',
+          'p_cancel': false,
+          'p_reason': null,
+          'p_command_id': 'cmd-4',
+        });
+        expect(trip.status, TripStatus.completed);
+      },
+    );
+
+    test('backend rejections propagate without any reload', () async {
+      var getTripCalls = 0;
+      final client = await planningClient((request) async {
+        if (request.url.path.endsWith('/rpc/start_trip')) {
+          return jsonResponse(
+            {'code': 'passengers_on_board', 'message': 'x'},
+            request,
+            409,
+          );
+        }
+        getTripCalls++;
+        return jsonResponse(tripProjection(), request);
+      });
+      addTearDown(client.dispose);
+
+      await expectLater(
+        DriverRouteService(client: client).startTrip('trip-1', 'cmd-1'),
+        throwsA(
+          isA<PostgrestException>().having(
+            (e) => e.code,
+            'code',
+            'passengers_on_board',
+          ),
+        ),
       );
+      expect(getTripCalls, 0);
     });
   });
 }
