@@ -136,9 +136,9 @@ This file records only features, files, migrations, and validation test results 
 
 **Delivered Scope:** Fleet owner calendar configuration, idempotent trip generation, cutoff deadlines and closures, owner exceptions, attendance tracking, driver/van substitutions, operational incidents, and synchronous reconciliation.
 
-**Artifacts:** Eight migrations (`20260907235815_cycle_4_calendar` to `20260907235829_cycle_4_jobs`), test suites `024` to `031`, operations harness, and inactive Cron orchestrator job. Runbook: [docs/operations/ciclo-4-production.md](docs/operations/ciclo-4-production.md).
+**Artifacts:** Eight migrations (`20260907235815_cycle_4_calendar` to `20260907235829_cycle_4_jobs`), test suites `024` to `031`, operations harness, and the Cron orchestrator job created inactive and activated by the versioned migration `20261003114734_activate_daily_operations_job`. Runbook: [docs/operations/ciclo-4-production.md](docs/operations/ciclo-4-production.md).
 
-**Validations:** 193 operational assertions, 12 orchestrator/Cron assertions, and 18 timezone-aware resource release assertions passed; 4 real concurrency races verified.
+**Validations:** 193 operational assertions, 12 orchestrator/Cron assertions, and 18 timezone-aware resource release assertions passed; 4 real concurrency races verified. On 2026-10-03 the regression suite `056_daily_trip_materialization.test.sql` verified direct allocations materialize passengers idempotently with correct timezone targeting, snapshots, started-trip immutability, tenant isolation, and private-function privileges; the local suite passed with 60 files and 1238 assertions.
 
 ## Cycle 5 — Push Notifications
 
@@ -169,6 +169,8 @@ This file records only features, files, migrations, and validation test results 
 ## Integrated Validation & Release Log
 
 Local: 41 migrations reset; 850 pgTAP assertions across 44 files passed; 45 Deno tests passed; typecheck, lint, and format passed; 14 real PostgreSQL concurrency races passed; real WebSocket tests passed.
+
+Task 19 (2026-10-03): local `supabase db reset` and full suite passed (60 files, 1238 assertions) including the new `056_daily_trip_materialization.test.sql` and the flipped `031` job-active assertion. The versioned migration `20261003114734_activate_daily_operations_job` activated the `vango-daily-operations` job locally; `cron.alter_job` inspection confirms `active = true` after reset. Database lint passed with `--fail-on error` (pre-existing warnings only), and the cycle-4 concurrency harness passed all four races with cleanup (`start-address`, `start-end`, `double-start`, `substitute-suspend`). Remote rollout remains pending operator `db push`.
 
 Remote SQL Deployment (2026-09-08): `npx supabase db push` successfully applied 25 pending migrations to the remote Supabase project (`njjeopcxhnkeszukaoma`). Remote history confirmed: 41 migrations, ending at `20260907235848`. Zero public tables without RLS, zero `SECURITY DEFINER` functions without search_path. Fleets and schools remain empty without remote seeds. FCM secrets, Edge Function deployment, device testing, and map provider integration remain pending.
 

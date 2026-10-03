@@ -233,6 +233,9 @@ where created_by in (
   '60000000-0000-0000-0000-000000000004',
   '60000000-0000-0000-0000-000000000005'
 );
+-- The catalog publication (20260926195424) references the fixture school.
+delete from private.school_publications
+where school_id = '65000000-0000-0000-0000-000000000001';
 delete from public.schools
 where id = '65000000-0000-0000-0000-000000000001';
 delete from auth.users
