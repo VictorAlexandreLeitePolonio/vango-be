@@ -78,3 +78,31 @@ begin
   perform pg_temp.create_test_user('60000000-0000-0000-0000-000000000005', 'owner-cycle2@example.test');
 end;
 $$;
+
+-- Legacy fixtures predate catalog publication. These transaction-local triggers
+-- publish only synthetic rows; production migrations never seed or trust them.
+create or replace function pg_temp.prepare_catalog_fixture() returns trigger language plpgsql as $$
+begin
+ if new.latitude is null and new.longitude is null then
+   new.latitude := -23.5; new.longitude := -46.6;
+ end if;
+ return new;
+end;
+$$;
+create or replace function pg_temp.publish_catalog_fixture() returns trigger language plpgsql as $$
+begin
+ if new.state_code='SP' and new.city_ibge_code ~ '^35[0-9]{5}$' then
+   insert into public.catalog_municipalities(city_ibge_code,city_name,state_code,source_reference)
+   values(new.city_ibge_code,new.city_name,new.state_code,'Synthetic municipality fixture') on conflict do nothing;
+   insert into private.school_publications(school_id,school_fingerprint,evidence_reference,verified_at)
+   values(new.id,private.school_publication_fingerprint(new.id),'Synthetic coordinates fixture',clock_timestamp());
+ end if;
+ return null;
+end;
+$$;
+do $$ begin
+ if to_regclass('private.school_publications') is not null then
+   create trigger test_prepare_catalog before insert on public.schools for each row execute function pg_temp.prepare_catalog_fixture();
+   create trigger test_publish_catalog after insert on public.schools for each row execute function pg_temp.publish_catalog_fixture();
+ end if;
+end $$;

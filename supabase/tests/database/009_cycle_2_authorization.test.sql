@@ -41,8 +41,8 @@ select throws_ok(
   '42501', null, 'authenticated cannot write schools'
 );
 select throws_ok(
-  $$insert into public.students (student_type, full_name, birth_date, postal_code, street, street_number, neighborhood, city_name, city_ibge_code, state_code, created_by)
-    values ('minor', 'Blocked', '2018-01-01', '18000000', 'Rua', '1', 'Centro', 'Teste', '3550000', 'SP', '40000000-0000-0000-0000-000000000001')$$,
+  $$insert into public.students (student_type, registration_origin, full_name, birth_date, postal_code, street, street_number, neighborhood, city_name, city_ibge_code, state_code, created_by)
+    values ('minor', 'guardian_created', 'Blocked', '2018-01-01', '18000000', 'Rua', '1', 'Centro', 'Teste', '3550000', 'SP', '40000000-0000-0000-0000-000000000001')$$,
   '42501', null, 'authenticated cannot write students directly'
 );
 select throws_ok(

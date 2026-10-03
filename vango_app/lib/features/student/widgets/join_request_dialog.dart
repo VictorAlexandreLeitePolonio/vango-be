@@ -4,6 +4,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/vango_button.dart';
 import '../models/student_models.dart';
+import '../services/student_error_mapper.dart';
 import '../services/student_service.dart';
 
 class JoinRequestDialog extends StatefulWidget {
@@ -55,7 +56,7 @@ class _JoinRequestDialogState extends State<JoinRequestDialog> {
       setState(() => _isSubmitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erro ao enviar solicitação: $e'),
+          content: Text(StudentErrorMapper.message(e)),
           backgroundColor: AppColors.errorRed,
         ),
       );
@@ -113,7 +114,9 @@ class _JoinRequestDialogState extends State<JoinRequestDialog> {
             // Aluno
             Text(
               'Selecione o Aluno:',
-              style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 6),
             Container(
@@ -143,7 +146,9 @@ class _JoinRequestDialogState extends State<JoinRequestDialog> {
             // Turno
             Text(
               'Turno:',
-              style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 6),
             Container(
@@ -159,7 +164,10 @@ class _JoinRequestDialogState extends State<JoinRequestDialog> {
                   items: const [
                     DropdownMenuItem(value: 'morning', child: Text('Manhã')),
                     DropdownMenuItem(value: 'afternoon', child: Text('Tarde')),
-                    DropdownMenuItem(value: 'full_day', child: Text('Integral')),
+                    DropdownMenuItem(
+                      value: 'full_day',
+                      child: Text('Integral'),
+                    ),
                   ],
                   onChanged: (shift) {
                     if (shift != null) setState(() => _selectedShift = shift);
@@ -172,17 +180,25 @@ class _JoinRequestDialogState extends State<JoinRequestDialog> {
             // Escola
             Text(
               'Escola de Destino:',
-              style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 4),
             Row(
               children: [
-                const Icon(Icons.school_outlined, size: 18, color: AppColors.textMuted),
+                const Icon(
+                  Icons.school_outlined,
+                  size: 18,
+                  color: AppColors.textMuted,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     widget.van.schoolName,
-                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textDark),
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textDark,
+                    ),
                   ),
                 ),
               ],

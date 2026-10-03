@@ -16,7 +16,11 @@ select has_table('public', 'fleet_join_requests', 'join requests table exists');
 select has_table('public', 'fleet_enrollments', 'enrollments table exists');
 select has_table('public', 'fleet_membership_role_sources', 'role sources table exists');
 
-select is((select count(*)::integer from public.schools), 0, 'catalog starts empty');
+select is(
+  (select count(*)::integer from public.schools where id <> '60000000-0000-0000-0000-000000000001'),
+  0,
+  'catalog has no unexpected schools beyond the local seed'
+);
 
 select ok(
   exists (

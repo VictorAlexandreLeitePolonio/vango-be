@@ -11,9 +11,19 @@ enum LocationTrackingMode {
   /// Real GPS reading from device hardware sensors via `geolocator`.
   deviceGps,
 
-  /// Simulated drive traversing route polyline points smoothly at ~35 km/h.
-  /// Ideal for testing on desktop, web, or when outside an active vehicle.
+  /// Demo drive traversing route polyline points at ~35 km/h. Only available
+  /// when built with `--dart-define=VANGO_ALLOW_SIMULATION=true`; its samples
+  /// are flagged [VanTelemetryUpdate.isSimulated] and never uploaded.
   simulation,
+}
+
+/// Outcome of trying to read the device GPS.
+enum GpsAvailability {
+  available,
+  serviceDisabled,
+  denied,
+  deniedForever,
+  error,
 }
 
 /// Telemetry snapshot emitted during active van movement.
@@ -23,6 +33,8 @@ class VanTelemetryUpdate {
     required this.headingDegrees,
     required this.speedKmh,
     required this.timestamp,
+    required this.isSimulated,
+    this.accuracyMeters,
     this.distanceToNextStopMeters,
     this.approachingStop,
     this.simulationProgressPercent,
@@ -37,8 +49,14 @@ class VanTelemetryUpdate {
   /// Approximate vehicle speed in km/h.
   final double speedKmh;
 
-  /// Recorded timestamp of the telemetry event.
+  /// Capture time of the fix (device GPS time for real samples).
   final DateTime timestamp;
+
+  /// Horizontal accuracy radius in meters; null for simulated samples.
+  final double? accuracyMeters;
+
+  /// Whether the sample came from the demo simulation; never uploaded.
+  final bool isSimulated;
 
   /// Geodesic distance in meters to the next student or school stop.
   final double? distanceToNextStopMeters;
@@ -53,16 +71,32 @@ class VanTelemetryUpdate {
   bool get isApproachingStop => approachingStop != null;
 }
 
-/// Core telemetry service managing real-time vehicle coordinates, heading calculations,
-/// proximity detection to student pickup points, and dual GPS/simulation operating modes.
+/// Core telemetry service managing real-time vehicle coordinates, heading
+/// calculations and proximity detection to student pickup points.
+///
+/// Real GPS is the default. A failed permission or sensor is reported through
+/// [availability] and never silently replaced by simulation.
 class DriverLocationService {
-  DriverLocationService();
+  /// [geolocator] is injectable for tests; [allowSimulation] defaults to the
+  /// `VANGO_ALLOW_SIMULATION` compile-time define.
+  DriverLocationService({GeolocatorPlatform? geolocator, bool? allowSimulation})
+    : _geolocator = geolocator ?? GeolocatorPlatform.instance,
+      allowSimulation =
+          allowSimulation ??
+          const bool.fromEnvironment('VANGO_ALLOW_SIMULATION');
 
+  final GeolocatorPlatform _geolocator;
+
+  /// Whether the demo simulation may be started at all.
+  final bool allowSimulation;
 
   final _telemetryController = StreamController<VanTelemetryUpdate>.broadcast();
   Stream<VanTelemetryUpdate> get telemetryStream => _telemetryController.stream;
 
-  LocationTrackingMode _mode = LocationTrackingMode.simulation;
+  /// Last GPS availability result; null until device GPS was attempted.
+  final ValueNotifier<GpsAvailability?> availability = ValueNotifier(null);
+
+  LocationTrackingMode _mode = LocationTrackingMode.deviceGps;
   LocationTrackingMode get mode => _mode;
 
   Timer? _simulationTimer;
@@ -77,61 +111,72 @@ class DriverLocationService {
   bool _isTracking = false;
   bool get isTracking => _isTracking;
 
-  /// Check and request location permission on the device
-  Future<bool> checkAndRequestPermissions() async {
+  /// Checks location services and permission, requesting it once if needed.
+  Future<GpsAvailability> checkAndRequestPermissions() async {
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        debugPrint('[DriverLocation] ⚠️ Serviços de localização desativados no dispositivo.');
-        return false;
+      if (!await _geolocator.isLocationServiceEnabled()) {
+        return GpsAvailability.serviceDisabled;
       }
-
-      LocationPermission permission = await Geolocator.checkPermission();
+      var permission = await _geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          debugPrint('[DriverLocation] ⚠️ Permissão de localização negada pelo usuário.');
-          return false;
-        }
+        permission = await _geolocator.requestPermission();
       }
-
-      if (permission == LocationPermission.deniedForever) {
-        debugPrint('[DriverLocation] ⚠️ Permissão de localização negada permanentemente.');
-        return false;
-      }
-
-      return true;
-    } catch (e) {
-      debugPrint('[DriverLocation] ⚠️ Erro ao verificar permissões de GPS: $e');
-      return false;
+      return switch (permission) {
+        LocationPermission.denied => GpsAvailability.denied,
+        LocationPermission.deniedForever => GpsAvailability.deniedForever,
+        _ => GpsAvailability.available,
+      };
+    } catch (_) {
+      return GpsAvailability.error;
     }
   }
 
-  /// Start tracking (GPS or Simulation)
-  Future<void> startTracking({
+  /// Opens the OS screen that can fix the current [availability]: location
+  /// settings when services are off, app settings after a permanent denial.
+  Future<void> openGpsSettings() async {
+    try {
+      switch (availability.value) {
+        case GpsAvailability.serviceDisabled:
+          await _geolocator.openLocationSettings();
+        case GpsAvailability.deniedForever:
+          await _geolocator.openAppSettings();
+        default:
+          break;
+      }
+    } catch (_) {}
+  }
+
+  /// Starts tracking in [mode] and returns the GPS availability.
+  ///
+  /// Device GPS that cannot start leaves tracking off (no fallback).
+  /// Throws [StateError] for simulation when [allowSimulation] is false.
+  Future<GpsAvailability> startTracking({
     required List<LatLng> routePoints,
     List<RouteStop> pendingStops = const [],
-    LocationTrackingMode mode = LocationTrackingMode.simulation,
+    LocationTrackingMode mode = LocationTrackingMode.deviceGps,
   }) async {
+    if (mode == LocationTrackingMode.simulation && !allowSimulation) {
+      throw StateError('Simulation is disabled in this build');
+    }
     stopTracking();
 
     _routePoints = List.from(routePoints);
     _pendingStops = List.from(pendingStops);
     _mode = mode;
-    _isTracking = true;
 
-    if (_mode == LocationTrackingMode.deviceGps) {
-      final granted = await checkAndRequestPermissions();
-      if (!granted) {
-        debugPrint('[DriverLocation] 🔄 Sem permissão GPS nativa. Alternando para modo Simulação.');
-        _mode = LocationTrackingMode.simulation;
-        _startSimulation();
-        return;
-      }
-      _startDeviceGps();
-    } else {
+    if (_mode == LocationTrackingMode.simulation) {
+      _isTracking = true;
       _startSimulation();
+      return GpsAvailability.available;
     }
+
+    final result = await checkAndRequestPermissions();
+    availability.value = result;
+    if (result == GpsAvailability.available) {
+      _isTracking = true;
+      _startDeviceGps();
+    }
+    return result;
   }
 
   /// Dynamically updates the list of pending stops remaining on the route.
@@ -194,22 +239,30 @@ class DriverLocationService {
       distanceFilter: 5, // Emits an update every 5 meters travelled
     );
 
-    _gpsSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen(
-      (Position position) {
-        final latLng = LatLng(position.latitude, position.longitude);
-        final heading = position.heading.isFinite && position.heading >= 0
-            ? position.heading
-            : (_latestTelemetry?.headingDegrees ?? 0.0);
-        final speedKmh = position.speed >= 0 ? position.speed * 3.6 : 0.0;
+    _gpsSubscription = _geolocator
+        .getPositionStream(locationSettings: locationSettings)
+        .listen(
+          (Position position) {
+            final latLng = LatLng(position.latitude, position.longitude);
+            final heading = position.heading.isFinite && position.heading >= 0
+                ? position.heading
+                : (_latestTelemetry?.headingDegrees ?? 0.0);
+            final speedKmh = position.speed >= 0 ? position.speed * 3.6 : 0.0;
 
-        _evaluateProximityAndEmit(latLng, heading, speedKmh);
-      },
-      onError: (error) {
-        debugPrint('[DriverLocation] ❌ Erro no stream de GPS: $error');
-      },
-    );
+            _evaluateProximityAndEmit(
+              latLng,
+              heading,
+              speedKmh,
+              capturedAt: position.timestamp,
+              accuracyMeters: position.accuracy,
+            );
+          },
+          // The error may carry location details: report, never log it.
+          onError: (Object _) {
+            _isTracking = false;
+            availability.value = GpsAvailability.error;
+          },
+        );
   }
 
   /// Evaluates geodesic proximity to the next pending stop.
@@ -219,24 +272,32 @@ class DriverLocationService {
     double heading,
     double speedKmh, {
     double? simulationProgress,
+    DateTime? capturedAt,
+    double? accuracyMeters,
   }) {
     double? minDistance;
     RouteStop? nextStop;
 
-    if (_pendingStops.isNotEmpty) {
-      nextStop = _pendingStops.first;
-      final stopPos = LatLng(nextStop.latitude, nextStop.longitude);
+    // Proximity targets the next pending stop that has coordinates; schools
+    // registered without coordinates are skipped rather than blocking alerts.
+    nextStop = _pendingStops.where((s) => s.hasCoordinates).firstOrNull;
+    if (nextStop != null) {
+      final stopPos = LatLng(nextStop.latitude!, nextStop.longitude!);
       minDistance = calculateDistanceMeters(currentPos, stopPos);
     }
 
     // Stop approaching trigger (< 50 meters)
-    final approaching = (minDistance != null && minDistance < 50.0) ? nextStop : null;
+    final approaching = (minDistance != null && minDistance < 50.0)
+        ? nextStop
+        : null;
 
     final telemetry = VanTelemetryUpdate(
       position: currentPos,
       headingDegrees: heading,
       speedKmh: speedKmh,
-      timestamp: DateTime.now(),
+      timestamp: capturedAt ?? DateTime.now(),
+      accuracyMeters: accuracyMeters,
+      isSimulated: _mode == LocationTrackingMode.simulation,
       distanceToNextStopMeters: minDistance,
       approachingStop: approaching,
       simulationProgressPercent: simulationProgress,
@@ -260,6 +321,7 @@ class DriverLocationService {
   /// Disposes internal streams and cancels timers when service is destroyed.
   void dispose() {
     stopTracking();
+    availability.dispose();
     _telemetryController.close();
   }
 
@@ -273,7 +335,8 @@ class DriverLocationService {
 
     final dLng = endLng - startLng;
     final y = math.sin(dLng) * math.cos(endLat);
-    final x = math.cos(startLat) * math.sin(endLat) -
+    final x =
+        math.cos(startLat) * math.sin(endLat) -
         math.sin(startLat) * math.cos(endLat) * math.cos(dLng);
 
     final bearingRad = math.atan2(y, x);
@@ -286,6 +349,8 @@ class DriverLocationService {
     return distance.as(LengthUnit.Meter, p1, p2);
   }
 
-  static double _degreesToRadians(double degrees) => degrees * (math.pi / 180.0);
-  static double _radiansToDegrees(double radians) => radians * (180.0 / math.pi);
+  static double _degreesToRadians(double degrees) =>
+      degrees * (math.pi / 180.0);
+  static double _radiansToDegrees(double radians) =>
+      radians * (180.0 / math.pi);
 }

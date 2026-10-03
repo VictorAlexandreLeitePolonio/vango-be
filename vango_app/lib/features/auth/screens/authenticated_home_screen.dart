@@ -33,22 +33,108 @@ class AuthenticatedHomeScreen extends StatefulWidget {
 class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
   bool _isSigningOut = false;
   AccountRole? _selectedRole;
-  late final DriverRouteService _driverRouteService;
-  DriverTrip? _driverTrip;
+  String? _selectedFleetId;
+  DriverRouteService? _driverRouteService;
+
+  // Service-day trips state: null list while loading; failure is explicit
+  // and never replaced by a fallback trip.
+  List<DriverTrip>? _driverTrips;
+  bool _driverTripsFailed = false;
 
   @override
   void initState() {
     super.initState();
     _selectedRole = _availableRoles.firstOrNull;
-    _driverRouteService = widget.driverRouteService ?? DriverRouteService();
-    _loadDriverTrip();
+    _selectedFleetId = widget.accessContext.ownerFleetIds.singleOrNull;
+    if (widget.accessContext.accountRoles.contains(AccountRole.driver)) {
+      _loadDriverTrips();
+    }
   }
 
-  Future<void> _loadDriverTrip() async {
-    final trip = await _driverRouteService.getTodayTrip();
-    if (mounted) {
-      setState(() => _driverTrip = trip);
+  /// Fleets whose trips the user may read: owner (whole fleet) or driver.
+  List<String> get _operationalFleetIds =>
+      widget.accessContext.fleetAccess
+          .where(
+            (access) =>
+                access.roles.contains(AccountRole.owner) ||
+                access.roles.contains(AccountRole.driver),
+          )
+          .map((access) => access.fleetId)
+          .toSet()
+          .toList()
+        ..sort();
+
+  Future<void> _loadDriverTrips() async {
+    setState(() {
+      _driverTrips = null;
+      _driverTripsFailed = false;
+    });
+    final fleetIds = _operationalFleetIds;
+    try {
+      // Created lazily so screens without operational fleets never touch the
+      // Supabase client.
+      final trips = fleetIds.isEmpty
+          ? const <DriverTrip>[]
+          : await (_driverRouteService ??=
+                    widget.driverRouteService ?? DriverRouteService())
+                .listTrips(fleetIds: fleetIds, serviceDate: DateTime.now());
+      if (mounted) setState(() => _driverTrips = trips);
+    } catch (_) {
+      if (mounted) setState(() => _driverTripsFailed = true);
     }
+  }
+
+  Widget _buildDriverTrips() {
+    if (_driverTripsFailed) {
+      return Column(
+        children: [
+          Text(
+            'Não foi possível carregar suas viagens.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.errorRed),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: _loadDriverTrips,
+            child: const Text('Tentar novamente'),
+          ),
+        ],
+      );
+    }
+    final trips = _driverTrips;
+    if (trips == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primaryOrange),
+      );
+    }
+    if (trips.isEmpty) {
+      return Text(
+        'Nenhuma viagem para hoje',
+        textAlign: TextAlign.center,
+        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted),
+      );
+    }
+    final currentUserId = _driverRouteService?.currentUserId;
+    return Column(
+      children: [
+        for (final trip in trips) ...[
+          DriverTripCard(
+            trip: trip,
+            canOperate: trip.isOperableBy(currentUserId),
+            onOpen: () async {
+              await Navigator.pushNamed(
+                context,
+                AppRoutes.driverRoute,
+                arguments: trip.id,
+              );
+              // The route screen may have changed the trip; re-read it.
+              if (mounted) _loadDriverTrips();
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
   }
 
   @override
@@ -56,6 +142,10 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
     super.didUpdateWidget(oldWidget);
     if (!widget.accessContext.accountRoles.contains(_selectedRole)) {
       _selectedRole = _availableRoles.firstOrNull;
+    }
+    final ownerFleetIds = widget.accessContext.ownerFleetIds;
+    if (!ownerFleetIds.contains(_selectedFleetId)) {
+      _selectedFleetId = ownerFleetIds.singleOrNull;
     }
   }
 
@@ -89,23 +179,30 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
     final accountLabel = user?.email ?? user?.id ?? 'Conta autenticada';
     final availableRoles = _availableRoles;
     final selectedRole = _selectedRole;
+    final ownerFleetIds = widget.accessContext.ownerFleetIds;
     final contentTitle = selectedRole == null
         ? _setupMessage(widget.accessContext.onboardingIntent)
         : _roleTitle(selectedRole);
 
-    final isDriver = selectedRole == AccountRole.driver ||
+    final isDriver =
+        selectedRole == AccountRole.driver ||
         (selectedRole == null &&
             widget.accessContext.onboardingIntent == OnboardingIntent.driver);
 
-    final isFleetOwner = selectedRole == AccountRole.owner ||
+    final isFleetOwner =
+        selectedRole == AccountRole.owner ||
         (selectedRole == null &&
-            widget.accessContext.onboardingIntent == OnboardingIntent.fleetOwner);
+            widget.accessContext.onboardingIntent ==
+                OnboardingIntent.fleetOwner);
 
-    final isGuardianOrStudent = selectedRole == AccountRole.guardian ||
+    final isGuardianOrStudent =
+        selectedRole == AccountRole.guardian ||
         selectedRole == AccountRole.student ||
         (selectedRole == null &&
-            (widget.accessContext.onboardingIntent == OnboardingIntent.guardian ||
-                widget.accessContext.onboardingIntent == OnboardingIntent.adultStudent));
+            (widget.accessContext.onboardingIntent ==
+                    OnboardingIntent.guardian ||
+                widget.accessContext.onboardingIntent ==
+                    OnboardingIntent.adultStudent));
 
     return Scaffold(
       backgroundColor: AppColors.backgroundWhite,
@@ -116,7 +213,10 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -140,20 +240,19 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                             );
                           }).toList(),
                           onChanged: (role) {
-                            if (role != null) setState(() => _selectedRole = role);
+                            if (role != null) {
+                              setState(() => _selectedRole = role);
+                            }
                           },
                         ),
                       ),
                     ],
-                    if (isDriver && _driverTrip != null) ...[
+                    if (isDriver &&
+                        widget.accessContext.accountRoles.contains(
+                          AccountRole.driver,
+                        )) ...[
                       const SizedBox(height: 24),
-                      DriverTripCard(
-                        trip: _driverTrip!,
-                        onViewRoute: () async {
-                          await Navigator.pushNamed(context, AppRoutes.driverRoute);
-                          _loadDriverTrip();
-                        },
-                      ),
+                      _buildDriverTrips(),
                     ],
                     if (isFleetOwner) ...[
                       const SizedBox(height: 24),
@@ -170,7 +269,9 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                             ),
                           ],
                           border: Border.all(
-                            color: AppColors.primaryOrange.withValues(alpha: 0.3),
+                            color: AppColors.primaryOrange.withValues(
+                              alpha: 0.3,
+                            ),
                           ),
                         ),
                         child: Column(
@@ -181,7 +282,9 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                                    color: AppColors.primaryOrange.withValues(
+                                      alpha: 0.12,
+                                    ),
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
@@ -193,15 +296,20 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Painel da Frota',
-                                        style: AppTextStyles.heading3.copyWith(fontSize: 18),
+                                        style: AppTextStyles.heading3.copyWith(
+                                          fontSize: 18,
+                                        ),
                                       ),
                                       Text(
                                         'Aprove pedidos e veja sua equipe',
-                                        style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: AppColors.textMuted,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -209,12 +317,57 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                               ],
                             ),
                             const SizedBox(height: 18),
-                            VanGoButton(
-                              text: 'Acessar Gestão da Frota',
-                              onPressed: () {
-                                Navigator.pushNamed(context, AppRoutes.fleetDashboard);
-                              },
-                            ),
+                            if (ownerFleetIds.isEmpty)
+                              const Text('Nenhuma frota disponível para gestão')
+                            else ...[
+                              if (ownerFleetIds.length > 1) ...[
+                                DropdownButton<String>(
+                                  hint: const Text('Selecione uma frota'),
+                                  value: _selectedFleetId,
+                                  items: ownerFleetIds
+                                      .map(
+                                        (fleetId) => DropdownMenuItem(
+                                          value: fleetId,
+                                          child: Text(fleetId),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (fleetId) => setState(
+                                    () => _selectedFleetId = fleetId,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                              VanGoButton(
+                                text: 'Acessar Gestão da Frota',
+                                onPressed: _selectedFleetId == null
+                                    ? null
+                                    : () {
+                                        final userId = widget
+                                            .authService
+                                            .currentSession
+                                            ?.user
+                                            .id;
+                                        final fleetId = _selectedFleetId;
+                                        if (userId == null ||
+                                            fleetId == null ||
+                                            !widget.accessContext.ownerFleetIds
+                                                .contains(fleetId)) {
+                                          return;
+                                        }
+                                        final OwnerFleetRouteArguments
+                                        arguments = (
+                                          fleetId: fleetId,
+                                          userId: userId,
+                                        );
+                                        Navigator.pushNamed(
+                                          context,
+                                          AppRoutes.fleetDashboard,
+                                          arguments: arguments,
+                                        );
+                                      },
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -245,7 +398,9 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: AppColors.primaryGold.withValues(alpha: 0.25),
+                                    color: AppColors.primaryGold.withValues(
+                                      alpha: 0.25,
+                                    ),
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
@@ -257,15 +412,20 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Transporte Escolar',
-                                        style: AppTextStyles.heading3.copyWith(fontSize: 18),
+                                        style: AppTextStyles.heading3.copyWith(
+                                          fontSize: 18,
+                                        ),
                                       ),
                                       Text(
                                         'Encontre vans ou gerencie alunos',
-                                        style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: AppColors.textMuted,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -276,7 +436,10 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                             VanGoButton(
                               text: 'Buscar Vans Disponíveis',
                               onPressed: () {
-                                Navigator.pushNamed(context, AppRoutes.vansMarketplace);
+                                Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.vansMarketplace,
+                                );
                               },
                             ),
                             const SizedBox(height: 12),
@@ -284,7 +447,10 @@ class _AuthenticatedHomeScreenState extends State<AuthenticatedHomeScreen> {
                               text: 'Cadastrar Novo Aluno',
                               isOutlined: true,
                               onPressed: () {
-                                Navigator.pushNamed(context, AppRoutes.studentRegister);
+                                Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.studentRegister,
+                                );
                               },
                             ),
                           ],

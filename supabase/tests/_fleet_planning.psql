@@ -1,0 +1,26 @@
+\ir _fleet_transport.psql
+
+-- Only synthetic fixtures call this administrative publication helper.
+create function pg_temp.publish_planning_school(p_school uuid) returns void language plpgsql as $$
+begin
+ insert into public.catalog_municipalities(city_ibge_code,city_name,state_code,source_reference)
+ select city_ibge_code,city_name,state_code,'Synthetic test municipality' from public.schools where id=p_school
+ on conflict(city_ibge_code) do nothing;
+ insert into private.school_publications(school_id,school_fingerprint,evidence_reference,verified_at)
+ values(p_school,private.school_publication_fingerprint(p_school),'Synthetic verified coordinates',clock_timestamp())
+ on conflict(school_id) do update set school_fingerprint=excluded.school_fingerprint;
+end;
+$$;
+
+create function pg_temp.route_config(p_route uuid) returns jsonb language sql as $$
+ select jsonb_build_object('name',name,'direction',direction,'shift',shift,'van_id',van_id,
+   'driver_user_id',driver_user_id,'paired_route_id',paired_route_id,'proximity_minutes',proximity_minutes,
+   'origin',jsonb_build_object('latitude',origin_latitude,'longitude',origin_longitude,'label',origin_label),
+   'destination',jsonb_build_object('latitude',destination_latitude,'longitude',destination_longitude,'label',destination_label),
+   'schools',(select jsonb_agg(jsonb_build_object('school_id',school_id,'position',position) order by position) from public.route_schools where route_id=p_route))
+ from public.routes where id=p_route;
+$$;
+create function pg_temp.schedule_config(p_schedule uuid) returns jsonb language sql as $$
+ select (to_jsonb(s)-array['id','fleet_id','route_id','created_at','updated_at','status','edit_revision']) || jsonb_build_object('starts_at',to_char(starts_at,'HH24:MI'),'ends_at',to_char(ends_at,'HH24:MI'))
+ from public.route_schedules s where id=p_schedule;
+$$;

@@ -6,6 +6,7 @@ import '../../../shared/widgets/mapbox_address_autocomplete_field.dart';
 import '../../../shared/widgets/vango_button.dart';
 import '../../../shared/widgets/vango_text_field.dart';
 import '../../shared/services/mapbox_geocoding_service.dart';
+import '../services/student_error_mapper.dart';
 import '../services/student_service.dart';
 
 class StudentRegistrationScreen extends StatefulWidget {
@@ -30,7 +31,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   final _addressSearchController = TextEditingController();
   final _numberController = TextEditingController();
   final _neighborhoodController = TextEditingController();
-  final _cityController = TextEditingController(text: 'São Paulo');
+  final _cityController = TextEditingController();
 
   late final StudentService _studentService;
   bool _isLoading = false;
@@ -117,7 +118,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erro ao cadastrar aluno: $e'),
+          content: Text(StudentErrorMapper.message(e)),
           backgroundColor: AppColors.errorRed,
         ),
       );
@@ -143,14 +144,13 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Dados do Aluno',
-                      style: AppTextStyles.heading2,
-                    ),
+                    Text('Dados do Aluno', style: AppTextStyles.heading2),
                     const SizedBox(height: 6),
                     Text(
                       'Informe os dados e o endereço de embarque do aluno.',
-                      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted),
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -186,7 +186,9 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Digite para buscar com precisão no mapa do Mapbox.',
-                      style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     const SizedBox(height: 12),
 

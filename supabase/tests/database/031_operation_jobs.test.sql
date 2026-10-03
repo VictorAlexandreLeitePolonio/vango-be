@@ -117,10 +117,12 @@ select is(
   1::bigint,
   'existe exatamente um job diário de operações'
 );
+-- The versioned rollout (2026-10-03 activate_daily_operations_job) flips the
+-- cycle-4 job on; the operator reviews grants and contracts before db push.
 select is(
   (select active from operation_job_cron_observation),
-  false,
-  'job diário nasce inativo para revisão operacional'
+  true,
+  'daily operations job is active after the versioned rollout'
 );
 select is(
   (select command from operation_job_cron_observation),

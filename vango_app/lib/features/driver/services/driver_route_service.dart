@@ -1,124 +1,93 @@
 import 'package:latlong2/latlong.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/driver_trip.dart';
 import '../models/route_stop.dart';
 import 'mapbox_directions_service.dart';
 
-import '../../fleet/services/fleet_service.dart';
-
+/// Reads persisted trips through the role-safe `list_service_day` and
+/// `get_trip` RPCs and computes route geometry for the loaded trip.
+///
+/// Backend failures propagate as [PostgrestException] (stable `code`); there
+/// is no fallback trip.
 class DriverRouteService {
   DriverRouteService({
+    SupabaseClient? client,
     MapboxDirectionsService? directionsService,
-    FleetService? fleetService,
-  })  : _directionsService = directionsService ?? MapboxDirectionsService(),
-        _fleetService = fleetService ?? FleetService();
+  }) : _client = client ?? Supabase.instance.client,
+       _directionsService = directionsService ?? MapboxDirectionsService();
 
+  final SupabaseClient _client;
   final MapboxDirectionsService _directionsService;
-  final FleetService _fleetService;
 
   DriverTrip? _currentTrip;
 
-  /// Default 3 stops with real coordinates in São Paulo:
-  /// 2 student pickups + 1 school/university destination.
-  static const List<RouteStop> defaultStops = [
-    RouteStop(
-      id: 'stop-01-lucas',
-      name: 'Lucas Alencar',
-      address: 'Rua Oscar Freire, 1000 - Cerqueira César',
-      scheduledTime: '06:45',
-      latitude: -23.5615,
-      longitude: -46.6698,
-      type: StopType.pickup,
-      notes: 'Aguardar no portão principal',
-    ),
-    RouteStop(
-      id: 'stop-02-mariana',
-      name: 'Mariana Rios',
-      address: 'Alameda Santos, 1800 - Cerqueira César',
-      scheduledTime: '07:05',
-      latitude: -23.5601,
-      longitude: -46.6575,
-      type: StopType.pickup,
-      notes: 'Tocar interfone 32',
-    ),
-    RouteStop(
-      id: 'stop-03-colegio',
-      name: 'Colégio Objetivo / Campus Central',
-      address: 'Rua Vergueiro, 1200 - Paraíso',
-      scheduledTime: '07:30',
-      latitude: -23.5745,
-      longitude: -46.6405,
-      type: StopType.dropoff,
-      notes: 'Entrada de vans pelo portão B',
-    ),
-  ];
+  /// Authenticated user id, used to decide who may operate a trip.
+  String? get currentUserId => _client.auth.currentUser?.id;
 
-  DriverTrip get initialTrip => const DriverTrip(
-        id: 'trip-today-001',
-        title: 'Rota Matutina — Colégio Objetivo',
-        vanPlate: 'BRA-2E19',
-        shift: 'Manhã',
-        stops: defaultStops,
+  /// Lists the service-day trips of every fleet in [fleetIds] for the local
+  /// calendar day of [serviceDate], ordered by planned start.
+  ///
+  /// Owners receive every fleet trip and drivers only their own; the backend
+  /// decides, so this never filters by role.
+  Future<List<DriverTrip>> listTrips({
+    required List<String> fleetIds,
+    required DateTime serviceDate,
+  }) async {
+    final date = _isoDate(serviceDate);
+    final trips = <DriverTrip>[];
+    for (final fleetId in fleetIds) {
+      final day = await _client.rpc(
+        'list_service_day',
+        params: {'p_fleet_id': fleetId, 'p_service_date': date},
       );
-
-  Future<DriverTrip> getTodayTrip() async {
-    if (_currentTrip != null) return _currentTrip!;
-
-    final enrolled = await _fleetService.getEnrolledStudents('51000000-0000-0000-0000-000000000001');
-    if (enrolled.isNotEmpty) {
-      final stops = <RouteStop>[];
-      int minute = 45;
-      for (int i = 0; i < enrolled.length; i++) {
-        final st = enrolled[i];
-        final timeStr = '06:${minute.toString().padLeft(2, '0')}';
-        minute += 15;
-        stops.add(
-          RouteStop(
-            id: st.id,
-            name: st.fullName,
-            address: st.address,
-            scheduledTime: timeStr,
-            latitude: st.latitude,
-            longitude: st.longitude,
-            type: StopType.pickup,
-          ),
-        );
+      if (day is! Map || day['trips'] is! List) {
+        throw const FormatException('Invalid service day');
       }
-
-      // Escola de destino final
-      stops.add(
-        const RouteStop(
-          id: 'stop-03-colegio',
-          name: 'Colégio Objetivo / Campus Central',
-          address: 'Rua Vergueiro, 1200 - Paraíso',
-          scheduledTime: '07:30',
-          latitude: -23.5745,
-          longitude: -46.6405,
-          type: StopType.dropoff,
-          notes: 'Portão principal de vans escolares',
-        ),
-      );
-
-      _currentTrip = DriverTrip(
-        id: 'trip-today-001',
-        title: 'Rota Matutina — Colégio Objetivo',
-        vanPlate: 'BRA-2E19',
-        shift: 'Manhã',
-        stops: stops,
-      );
-      return _currentTrip!;
+      for (final trip in day['trips'] as List) {
+        if (trip is! Map) throw const FormatException('Invalid trip');
+        trips.add(DriverTrip.fromProjection(Map<String, dynamic>.from(trip)));
+      }
     }
-
-    _currentTrip = initialTrip;
-    return _currentTrip!;
+    trips.sort((a, b) => a.plannedStartAt.compareTo(b.plannedStartAt));
+    return trips;
   }
 
-  /// Calculates the optimized route geometry and real duration via Mapbox.
-  /// Uses cached results to strictly avoid redundant API requests.
-  Future<DriverTrip> calculateAndOptimizeRoute({bool forceRefresh = false}) async {
-    final trip = await getTodayTrip();
+  /// Loads one authorized trip and makes it the current trip of this service.
+  ///
+  /// Reloading the same trip (after every lifecycle command) keeps the route
+  /// geometry already computed for it, so the map does not lose its polyline.
+  Future<DriverTrip> getTrip(String tripId) async {
+    final json = await _client.rpc('get_trip', params: {'p_trip_id': tripId});
+    if (json is! Map) throw const FormatException('Invalid trip');
+    final previous = _currentTrip;
+    var trip = DriverTrip.fromProjection(Map<String, dynamic>.from(json));
+    if (previous != null && previous.id == trip.id) {
+      trip = trip.copyWith(
+        polylinePoints: previous.polylinePoints,
+        totalDistanceMeters: previous.totalDistanceMeters,
+        totalDurationSeconds: previous.totalDurationSeconds,
+      );
+    }
+    _currentTrip = trip;
+    return trip;
+  }
 
-    final coords = trip.stops.map((s) => LatLng(s.latitude, s.longitude)).toList();
+  /// Sends one live GPS batch (`p_trip_id`, `p_assignment_id`, `p_points`,
+  /// `p_live`) to `ingest_trip_locations`; backend codes surface as
+  /// [PostgrestException]. Used by `TripTelemetryUploader`.
+  Future<void> ingestTripLocations(Map<String, dynamic> params) =>
+      _client.rpc('ingest_trip_locations', params: params);
+
+  /// Calculates route geometry and duration via Mapbox for the loaded trip,
+  /// through the stops that have coordinates, in backend order.
+  Future<DriverTrip> calculateAndOptimizeRoute({
+    bool forceRefresh = false,
+  }) async {
+    final trip = _requireTrip();
+    final coords = trip.mappableStops
+        .map((s) => LatLng(s.latitude!, s.longitude!))
+        .toList();
 
     if (forceRefresh) {
       MapboxDirectionsService.clearCache();
@@ -134,47 +103,76 @@ class DriverRouteService {
       totalDistanceMeters: directions.totalDistanceMeters,
       totalDurationSeconds: directions.totalDurationSeconds,
     );
-
     return _currentTrip!;
   }
 
-  Future<DriverTrip> startTrip() async {
-    final trip = await getTodayTrip();
-    _currentTrip = trip.copyWith(status: TripStatus.inProgress);
-    return _currentTrip!;
-  }
-
-  Future<DriverTrip> updateStopStatus(String stopId, StopStatus newStatus) async {
-    final trip = await getTodayTrip();
-    final updatedStops = trip.stops.map((stop) {
-      if (stop.id == stopId) {
-        return stop.copyWith(status: newStatus);
-      }
-      return stop;
-    }).toList();
-
-    _currentTrip = trip.copyWith(stops: updatedStops);
-    return _currentTrip!;
-  }
-
-  Future<DriverTrip> finishTrip() async {
-    final trip = await getTodayTrip();
-    final updatedStops = trip.stops.map((stop) {
-      if (stop.isSchoolDestination) {
-        return stop.copyWith(status: StopStatus.completed);
-      }
-      return stop;
-    }).toList();
-
-    _currentTrip = trip.copyWith(
-      status: TripStatus.completed,
-      stops: updatedStops,
+  /// Starts the trip through the idempotent backend command and returns the
+  /// freshly loaded persisted trip.
+  Future<DriverTrip> startTrip(String tripId, String commandId) async {
+    await _client.rpc(
+      'start_trip',
+      params: {'p_trip_id': tripId, 'p_command_id': commandId},
     );
-    return _currentTrip!;
+    return getTrip(tripId);
   }
 
-  void resetForTest() {
-    _currentTrip = null;
-    MapboxDirectionsService.clearCache();
+  /// Records one passenger lifecycle event through the backend command and
+  /// returns the freshly loaded persisted trip.
+  Future<DriverTrip> recordPassengerEvent(
+    String tripId,
+    String studentId,
+    PassengerEventKind kind,
+    String commandId,
+  ) async {
+    await _client.rpc(
+      'record_passenger_event',
+      params: {
+        'p_trip_id': tripId,
+        'p_student_id': studentId,
+        'p_kind': kind.backend,
+        'p_command_id': commandId,
+      },
+    );
+    return getTrip(tripId);
   }
+
+  /// Marks the van as arrived at one trip stop and returns the freshly loaded
+  /// persisted trip.
+  Future<DriverTrip> markStopReached(
+    String tripId,
+    String stopId,
+    String commandId,
+  ) async {
+    await _client.rpc(
+      'mark_trip_stop_reached',
+      params: {'p_stop_id': stopId, 'p_command_id': commandId},
+    );
+    return getTrip(tripId);
+  }
+
+  /// Finishes the trip (no cancellation in the MVP) and returns the freshly
+  /// loaded persisted trip.
+  Future<DriverTrip> finishTrip(String tripId, String commandId) async {
+    await _client.rpc(
+      'finish_trip',
+      params: {
+        'p_trip_id': tripId,
+        'p_cancel': false,
+        'p_reason': null,
+        'p_command_id': commandId,
+      },
+    );
+    return getTrip(tripId);
+  }
+
+  DriverTrip _requireTrip() {
+    final trip = _currentTrip;
+    if (trip == null) throw StateError('Load a trip before operating it');
+    return trip;
+  }
+
+  static String _isoDate(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 }

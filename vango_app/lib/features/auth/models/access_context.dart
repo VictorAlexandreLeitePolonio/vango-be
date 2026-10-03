@@ -24,6 +24,15 @@ class AccessContext {
   final String? adultStudentId;
   final List<FleetAccess> fleetAccess;
 
+  /// Returns active owner fleet IDs, deduplicated and sorted for display.
+  List<String> get ownerFleetIds =>
+      fleetAccess
+          .where((access) => access.roles.contains(AccountRole.owner))
+          .map((access) => access.fleetId)
+          .toSet()
+          .toList()
+        ..sort();
+
   factory AccessContext.fromJson(Map<String, dynamic> json) {
     return AccessContext(
       onboardingIntent: _parseOnboardingIntent(json['onboarding_intent']),

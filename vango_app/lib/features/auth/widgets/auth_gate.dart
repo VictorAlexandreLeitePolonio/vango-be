@@ -119,6 +119,7 @@ class _AuthGateState extends State<AuthGate> {
       setState(() {
         _isLoadingAccess = true;
         _accessError = null;
+        _accessContext = null;
       });
     }
 
@@ -203,6 +204,7 @@ class _AuthGateState extends State<AuthGate> {
     }
 
     return AuthenticatedHomeScreen(
+      key: ValueKey(_session!.user.id),
       authService: widget.authService,
       accessContext: accessContext,
     );

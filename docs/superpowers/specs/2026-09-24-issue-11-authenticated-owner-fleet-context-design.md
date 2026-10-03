@@ -1,6 +1,6 @@
 # Issue #11 — Authenticated Owner Fleet Context
 
-**Status:** Initial design for review
+**Status:** Approved design with review adjustments (2026-09-24)
 **Issue:** [fix(flutter): resolve authenticated owner fleet context](https://github.com/VictorAlexandreLeitePolonio/vango-be/issues/11)
 **Scope:** Flutter owner entry point and fleet dashboard
 
@@ -18,7 +18,7 @@ The existing access-context RPC and model remain the source of owner membership.
 
 ### Resolve the owner fleet
 
-Filter `AccessContext.fleetAccess` to entries whose roles contain `AccountRole.owner`. Ignore `accountRoles` and `onboardingIntent` when deciding which fleet ID can enter owner management; those fields may control presentation but do not identify an authorized fleet. Treat repeated entries for the same fleet ID as one option.
+Filter `AccessContext.fleetAccess` to entries whose roles contain `AccountRole.owner`, deduplicate by `fleetId`, and sort by `fleetId` before building the selector. Ignore `accountRoles` and `onboardingIntent` when deciding which fleet ID can enter owner management; those fields may control presentation but do not identify an authorized fleet. If a refreshed context excludes the selected fleet, clear the selection immediately.
 
 - **One owner fleet:** Select it automatically and pass its ID to the dashboard.
 - **Several owner fleets:** Require the user to choose one before opening the dashboard. Keep the choice in the authenticated home flow and pass the selected ID explicitly. The selector shows stable fleet identifiers from the response; no extra fleet-name lookup is required for this issue.
@@ -28,9 +28,9 @@ The selected ID must still belong to the current access context at navigation ti
 
 ### Route and session lifecycle
 
-Make the dashboard require an explicit fleet ID; remove its fixed default. The owner entry passes the chosen ID through the route. The dashboard route rejects missing or invalid arguments with a Portuguese access state instead of constructing a dashboard for a fallback fleet. Entering the route directly must not bypass the current session and owner-fleet check.
+Make the dashboard require an explicit fleet ID; remove its fixed default. The owner entry passes the chosen ID and current session user ID through the route. The dashboard has its own guard: compare that user ID with `AuthService.currentSession`, call `getMyAccessContext()`, and confirm that the fleet still has an active `owner` role before loading fleet data. Reject missing or invalid arguments with a Portuguese access state instead of constructing a dashboard for a fallback fleet. Entering the route directly must pass the same check.
 
-When the authenticated user changes, signs out, or loses owner access on a refreshed context, clear the selection and remove or invalidate any open fleet dashboard. A dashboard opened for one user must never remain visible under another user's session. Reset dashboard lists and loading state when its fleet changes; discard responses from an older load after a newer fleet/session selection or disposal. Session restoration waits for access context before offering owner navigation.
+The dashboard guard observes authentication changes while the route is open. When the user changes, signs out, or loses owner access, it closes the route or replaces its contents with an access-denied state and clears fleet data immediately. A context-check failure displays an error/retry state without exposing old data. Reset dashboard lists and loading state when its fleet changes; discard responses from an older load after a newer fleet/session selection or disposal. Session restoration waits for access context before offering owner navigation.
 
 Reuse `AuthGate`'s request-generation handling for context loads. Any additional route-level lifecycle handling should be limited to keeping a pushed owner screen tied to the current user and fleet; do not introduce a global state framework.
 
@@ -60,11 +60,11 @@ Use TDD for each behavior: run a focused failing unit/widget test, implement the
 2. No active owner fleet, including owner onboarding intent without membership, shows the access state and makes no owner-data request.
 3. Multiple owner fleets require a choice and open the chosen fleet only.
 4. Restored sessions wait for access context before owner navigation.
-5. Sign-out, account switching, or context refresh removes stale selection and visible fleet data; a late response from the previous user/fleet is ignored.
-6. Direct dashboard navigation without a valid current owner fleet is rejected.
+5. Sign-out, account switching, or context refresh removes stale selection and visible fleet data from an already open dashboard; a late response from the previous user/fleet is ignored.
+6. Direct dashboard navigation without a matching current user ID and active owner fleet is rejected.
 7. Access-context and dashboard failures show an error/retry state; successful empty results remain empty and show no sample records.
 
-Run only the affected Flutter unit/widget tests, plus formatting and static analysis required by `CONTRIBUTING.md`. Do not run the complete test suite for this task. Update the relevant Flutter README if the user-visible owner entry behavior or route contract changes.
+During RED/GREEN, run only the affected Flutter unit/widget tests. Before completing the task, run the full Flutter gate required by `CONTRIBUTING.md` from `vango_app`: `dart format --output=none --set-exit-if-changed .`, `flutter analyze`, and `flutter test --coverage`. Confirm the required 80% coverage for business/domain logic. Update the relevant Flutter README if the user-visible owner entry behavior or route contract changes.
 
 ## Decision and limits
 

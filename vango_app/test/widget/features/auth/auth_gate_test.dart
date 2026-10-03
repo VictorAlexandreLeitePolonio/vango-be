@@ -128,6 +128,31 @@ void main() {
     expect(find.text('Painel da frota'), findsNothing);
   });
 
+  testWidgets('account switch ignores the previous user access result', (
+    tester,
+  ) async {
+    final service = FakeAuthService.signedIn(userId: 'user-1');
+    final other = FakeAuthService.signedIn(userId: 'user-2');
+    final oldAccess = Completer<AccessContext>();
+    final newAccess = Completer<AccessContext>();
+    service.accessCompleter = oldAccess;
+    addTearDown(service.dispose);
+    addTearDown(other.dispose);
+
+    await tester.pumpWidget(buildTestApp(AuthGate(authService: service)));
+    service.accessCompleter = newAccess;
+    service.emit(AuthChangeEvent.signedIn, nextSession: other.session);
+    await tester.pump();
+    oldAccess.complete(_accessContext(roles: {AccountRole.owner}));
+    await tester.pump();
+    expect(find.text('Painel da frota'), findsNothing);
+
+    newAccess.complete(_accessContext(roles: {AccountRole.guardian}));
+    await tester.pumpAndSettle();
+    expect(find.text('Meus alunos'), findsOneWidget);
+    expect(find.text('Painel da frota'), findsNothing);
+  });
+
   testWidgets('shows password reset after a recovery event', (tester) async {
     final service = FakeAuthService.signedIn(userId: 'user-1');
     addTearDown(service.dispose);

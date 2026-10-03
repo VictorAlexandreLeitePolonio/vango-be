@@ -1,3 +1,4 @@
+/// Student linked to the signed-in guardian, as stored in `public.students`.
 class StudentProfile {
   const StudentProfile({
     required this.id,
@@ -10,8 +11,8 @@ class StudentProfile {
     required this.cityIbgeCode,
     required this.stateCode,
     required this.postalCode,
-    required this.latitude,
-    required this.longitude,
+    this.latitude,
+    this.longitude,
   });
 
   final String id;
@@ -24,12 +25,16 @@ class StudentProfile {
   final String cityIbgeCode;
   final String stateCode;
   final String postalCode;
-  final double latitude;
-  final double longitude;
+
+  /// Pickup coordinates; `null` when the backend has none (never defaulted).
+  final double? latitude;
+  final double? longitude;
 
   String get fullAddress =>
       '$street, $streetNumber - $neighborhood, $cityName - $stateCode';
 
+  /// Builds a profile from a `students` row. Missing values stay empty
+  /// instead of being replaced by invented locations.
   factory StudentProfile.fromMap(Map<String, dynamic> map) {
     return StudentProfile(
       id: map['id'] as String? ?? '',
@@ -38,12 +43,12 @@ class StudentProfile {
       street: map['street'] as String? ?? '',
       streetNumber: map['street_number'] as String? ?? '',
       neighborhood: map['neighborhood'] as String? ?? '',
-      cityName: map['city_name'] as String? ?? 'São Paulo',
-      cityIbgeCode: map['city_ibge_code'] as String? ?? '3550308',
-      stateCode: map['state_code'] as String? ?? 'SP',
-      postalCode: map['postal_code'] as String? ?? '01000-000',
-      latitude: (map['latitude'] as num?)?.toDouble() ?? -23.5615,
-      longitude: (map['longitude'] as num?)?.toDouble() ?? -46.6698,
+      cityName: map['city_name'] as String? ?? '',
+      cityIbgeCode: map['city_ibge_code'] as String? ?? '',
+      stateCode: map['state_code'] as String? ?? '',
+      postalCode: map['postal_code'] as String? ?? '',
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
     );
   }
 }

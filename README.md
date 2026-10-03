@@ -50,6 +50,14 @@ Published fleets appear based on served cities and covered institutions. Public 
 
 Primary guardians create minor student profiles, while adult students create their own records. Link requests store a private snapshot of the residential address, require an active/covered school and served city, and await owner approval. Approval establishes the enrollment link within the same transaction.
 
+Fleet owners can also register a minor or adult before the student has an account. These records retain the `fleet_owner_created` origin even if an adult profile is linked later, and the direct enrollment records its school and shift without creating a join request or guardian relationship for a pre-auth contact. Contact details are stored separately with owner-only reads. Accepting a fleet invitation still creates a pending request; the enrollment is created only after approval.
+
+### Owner student RPCs
+
+`create_fleet_managed_student` accepts a fleet ID, command UUID, student type and details, structured address, required latitude and longitude, covered school, shift, and primary contact. An active owner with a confirmed email can create a student, active enrollment, contact, and sanitized audit event in one transaction. The selected school must be active and covered by the fleet; the fleet need not be published. No Auth account, guardian link, or join request is created. The RPC returns `student_id` and `enrollment_id`. Repeating the same command with the same owner and canonical payload returns those IDs; changing the owner or payload returns `idempotency_conflict`. A new command creates a new registration even for matching personal details.
+
+`list_fleet_students(p_fleet_id uuid)` returns active enrollments from both registration origins to an active owner, ordered by lowercase student name and student ID. Its fields are enrollment/student IDs, student type and name, structured address, school ID/name, and shift. It excludes contacts, profile/Auth data, coordinates, and idempotency receipts. Missing or unauthorized fleets return `not_found`. Migrations `20260924104811_prd_10_owner_fleet_student_rpcs.sql` and `20260924105909_prd_10_registration_replay_after_coverage_change.sql` are applied to the linked VanGo project; the latter keeps valid retries working after school coverage or age changes.
+
 Owners can also invite guardians or adult students. Flutter retains the token during sign-up/login callbacks; the backend stores only the SHA-256 hash and accepts invitations only for matching confirmed emails. Secondary guardians receive derived access to the dependent's active links.
 
 Approval requires full seat allocation in the same transaction; accepting an invitation creates a pending request. New requests and schedule changes compete for seats by seniority among fully compatible entries, subject to owner acceptance or rejection.
@@ -173,3 +181,106 @@ Specs were approved on 2026-09-07. Implementation plans record contracts and tas
 ## Backend Validation
 
 Run `python3 supabase/tests/run_database_tests.py` in the local Supabase environment. The runner expands `\ir` includes into temporary files, executes the pgTAP test suite, and cleans up temporary files afterwards without affecting remote environments.
+
+
+## Real planning-to-trip cycle (epic #15, tasks #19–#23)
+
+- **#19** activates the `vango-daily-operations` job (migration `20261003114734`), which materializes the local next service day from direct owner allocations.
+- **#20** Flutter "Minhas viagens" and the route screen read persisted trips through `list_service_day` / `get_trip` (route name, van plate and passenger names added by `20261003113739`); there is no fallback trip.
+- **#21** start, boarding, absence, school arrival, drop-off and finish go through the idempotent trip RPCs; fleet-managed students without account or guardian are auto-confirmed (`20261003124659`).
+- **#22** real device GPS of the assigned driver is batched into `ingest_trip_locations`; GPS failures are shown instead of silently simulated, and simulation requires `VANGO_ALLOW_SIMULATION`.
+- **#23** `supabase/tests/database/059_planning_to_trip_e2e.test.sql` exercises the whole cycle through public RPCs, including cross-tenant denial and rejected commands. Recorded results are in [deliverables.md](./deliverables.md); the manual on-device scenario is still pending.
+
+## Issue 16: Direct fleet-student transport allocation
+
+`assign_fleet_student_transport(p_enrollment_id uuid, p_school_id uuid,
+p_allocations jsonb, p_effective_on date, p_command_id uuid,
+p_expected_routing_revision bigint)` returns one immutable receipt containing
+`command_id`, `enrollment_id`, `routing_revision`, and `effective_on`.
+Only an active confirmed owner can assign an active owner-registered enrollment.
+School is an assertion: the command never transfers schools or changes registration provenance.
+
+Allocations are explicit `{schedule_id, weekday, direction}` triples, one per ISO
+weekday/direction pair. The command replaces the entire program from the requested
+service date, preserving older periods and overnight executions that started before it.
+First allocations may start today before their local confirmation cutoff; replacements
+start on a later local date. Closed/started/terminal affected trips cannot be rewritten.
+No marketplace request, membership, Auth account, or trip-generation command is created.
+
+Retain the command UUID, exact submitted payload and expected revision across network
+retries. Replay returns the historical receipt after current authorization, without
+reapplying an old program. A new stale command returns `revision_conflict`; reusing a
+command for another actor/payload returns `idempotency_conflict`. Other structured
+errors include `invalid_input`, `invalid_transition`, `effective_date_conflict`,
+`capacity_exceeded`, `schedule_conflict`, and sanitized `allocation_failed`.
+Owner `get_fleet_planning` adds `enrollment_revisions`, including unallocated active
+enrollments; driver-only callers receive an empty array. Existing projection fields remain.
+
+Local verification uses the existing pgTAP runner and
+`supabase/tests/concurrency/fleet_transport.py`. The latter requires explicit local
+`PGHOST`, `PGPORT`, `PGUSER=postgres`, `PGDATABASE=postgres`, and `PGPASSWORD`, a
+server-compatible PostgreSQL 17+ `pg_dump`, and the local Supabase administrator for
+restoration. It creates random isolated databases, observes actual advisory waits,
+and drops only databases created by its invocation. Cron is excluded from those copies.
+Use a dedicated local Supabase stack; never point tests at a shared or remote database.
+No remote migration rollout is implied by commit/push.
+
+## Owner fleet planning (#17)
+
+Owners open **Planejamento da frota** from their fleet dashboard. Coverage, vehicle,
+route and recurring-schedule forms save independently. Endpoints require explicit
+map confirmation or an explicitly selected published institution. Enabling the
+owner as a driver is a separate action and preserves enrollment-derived roles.
+This flow does not allocate students or generate trips.
+
+Revision-aware overloads retain the legacy argument sets and add required
+`p_command_id uuid` and `p_expected_revision bigint` to `save_van`, `save_route`
+and `save_route_schedule`. Creation sends both the entity ID and expected revision
+as explicit nulls; edits send the opened entity ID and revision. Each command
+atomically persists domain changes, existing audit events and a private immutable
+receipt. Exact retries return the original result without repeating side effects;
+changed input returns `idempotency_conflict`; stale edits return `revision_conflict`.
+
+The owner projection adds coverage, active driver labels, owner operator status,
+edit revisions, route endpoints and ordered institution references. Existing
+fields remain intact; driver projections retain the previous contract. Flutter
+validates known response fields strictly and tolerates additive unknown fields.
+Uncertain writes retain their immutable command; a read failure after commit only
+retries the read. Session/fleet changes invalidate the previous controller.
+
+### Catalog prerequisite
+
+`catalog_municipalities` holds administratively sourced SP municipality metadata.
+`private.school_publications` binds evidence and verification time to the current
+institution fingerprint. Active institutions require finite coordinates and a
+matching municipality; changed institution data requires renewed publication.
+Owners can only link published schools/campuses after linking their municipality.
+All coverage writes enforce the invariants in PostgreSQL, including direct writes.
+Only administrators may populate publication evidence; there is no client curation
+endpoint. Client execution grants are explicit per RPC signature, and private
+helpers/receipts are not client-accessible.
+
+The seed and automated tests contain **synthetic local data only**. No statewide
+INEP/e-MEC dataset was imported or validated by #17. Production availability across
+SP, including the interior, depends on the separately specified catalog acquisition
+and publication process. No production migration or deployment is part of this
+branch delivery; no new runtime environment variable or dependency was added.
+
+### Additional local verification
+
+Use an owned disposable Supabase stack, never the shared development database.
+The live HTTP harness requires API port 56321, PostgreSQL port 56322 and a freshly
+seeded database with no other task fixtures. Store `supabase status -o json` outside
+the repository, keep it private, and point `VANGO_TEST_STATUS` to that file.
+
+- Run the existing database test runner and the new `052`–`055` pgTAP suites.
+- With local `PG*` settings, run `python3 supabase/tests/concurrency/fleet_planning.py`.
+  It creates/drops invocation-owned database copies and observes real lock waits.
+- On the clean owned baseline, run `python3 supabase/tests/http/fleet_planning.py`.
+  This leaves its synthetic fixtures for the native client test; reset only the
+  owned stack before repeating it or running the database suite again.
+- From `vango_app`, run `flutter test --no-pub --dart-define=VANGO_TEST_STATUS=/absolute/external/status.json test/integration/fleet_planning_test.dart`.
+  This uses real Auth/PostgREST to save, replay and reopen persisted configuration.
+  The normal unit/widget suite skips this opt-in network test.
+- Run `flutter test --no-pub --coverage`, `flutter analyze --no-pub`, and
+  `dart format --output=none --set-exit-if-changed .` from `vango_app`.

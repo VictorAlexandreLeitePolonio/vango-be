@@ -1,0 +1,174 @@
+{
+  "vans": [
+    {
+      "id": "8f49779b-2360-4b69-8b22-af2e579eccfe",
+      "model": "Micro",
+      "plate": "CYC1234",
+      "status": "active",
+      "capacity": 30,
+      "public_name": "Van Ciclo 3",
+      "edit_revision": 1
+    }
+  ],
+  "routes": [
+    {
+      "id": "00354135-5eae-421f-8ac2-0aac09931f8d",
+      "name": "Ciclo 3 ida",
+      "shift": "morning",
+      "origin": {
+        "label": "Resid\u00eancia",
+        "latitude": -23.5505,
+        "longitude": -46.6333
+      },
+      "status": "active",
+      "van_id": "8f49779b-2360-4b69-8b22-af2e579eccfe",
+      "schools": [
+        {
+          "position": 1,
+          "school_id": "65000000-0000-0000-0000-000000000001"
+        }
+      ],
+      "direction": "going",
+      "destination": {
+        "label": "Escola",
+        "latitude": -23.561,
+        "longitude": -46.655
+      },
+      "origin_label": "Resid\u00eancia",
+      "edit_revision": 5,
+      "driver_user_id": "40000000-0000-0000-0000-000000000003",
+      "paired_route_id": "2f2f287c-5314-4277-b480-9a0dfdce9864",
+      "routing_revision": 2,
+      "destination_label": "Escola",
+      "proximity_minutes": 10
+    },
+    {
+      "id": "2f2f287c-5314-4277-b480-9a0dfdce9864",
+      "name": "Ciclo 3 volta",
+      "shift": "morning",
+      "origin": {
+        "label": "Escola",
+        "latitude": -23.561,
+        "longitude": -46.655
+      },
+      "status": "active",
+      "van_id": "8f49779b-2360-4b69-8b22-af2e579eccfe",
+      "schools": [
+        {
+          "position": 1,
+          "school_id": "65000000-0000-0000-0000-000000000001"
+        }
+      ],
+      "direction": "return",
+      "destination": {
+        "label": "Resid\u00eancia",
+        "latitude": -23.5505,
+        "longitude": -46.6333
+      },
+      "origin_label": "Escola",
+      "edit_revision": 2,
+      "driver_user_id": "40000000-0000-0000-0000-000000000003",
+      "paired_route_id": "00354135-5eae-421f-8ac2-0aac09931f8d",
+      "routing_revision": 1,
+      "destination_label": "Resid\u00eancia",
+      "proximity_minutes": 10
+    }
+  ],
+  "drivers": [
+    {
+      "user_id": "40000000-0000-0000-0000-000000000003",
+      "display_name": null
+    }
+  ],
+  "revisions": [
+    {
+      "route_id": "00354135-5eae-421f-8ac2-0aac09931f8d",
+      "routing_revision": 2
+    },
+    {
+      "route_id": "2f2f287c-5314-4277-b480-9a0dfdce9864",
+      "routing_revision": 1
+    }
+  ],
+  "schedules": [
+    {
+      "id": "50f207a3-848d-4610-998d-850453c2025d",
+      "status": "active",
+      "ends_at": "09:00:00",
+      "route_id": "00354135-5eae-421f-8ac2-0aac09931f8d",
+      "timezone": "America/Sao_Paulo",
+      "weekdays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "starts_at": "08:00:00",
+      "valid_from": "2026-09-27",
+      "valid_until": "2026-12-25",
+      "edit_revision": 1,
+      "ends_next_day": false,
+      "confirmation_minutes": 30
+    },
+    {
+      "id": "9310e103-7522-4de6-9d3f-8db2a09b932f",
+      "status": "active",
+      "ends_at": "17:00:00",
+      "route_id": "2f2f287c-5314-4277-b480-9a0dfdce9864",
+      "timezone": "America/Sao_Paulo",
+      "weekdays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "starts_at": "16:00:00",
+      "valid_from": "2026-09-27",
+      "valid_until": "2026-12-25",
+      "edit_revision": 1,
+      "ends_next_day": false,
+      "confirmation_minutes": 30
+    }
+  ],
+  "reservations": [],
+  "owner_operator": {
+    "is_driver": false,
+    "membership_id": "42000000-0000-0000-0000-000000000001"
+  },
+  "service_cities": [
+    {
+      "city_name": "Cidade Teste",
+      "state_code": "SP",
+      "city_ibge_code": "3550000"
+    }
+  ],
+  "service_schools": [
+    {
+      "name": "Escola Ciclo 3",
+      "street": "Rua do Ciclo 3",
+      "latitude": -23.5,
+      "city_name": "Cidade Teste",
+      "longitude": -46.6,
+      "school_id": "65000000-0000-0000-0000-000000000001",
+      "state_code": "SP",
+      "postal_code": "18000000",
+      "neighborhood": "Centro",
+      "street_number": "1",
+      "city_ibge_code": "3550000",
+      "institution_type": "school",
+      "address_complement": null
+    }
+  ],
+  "enrollment_revisions": [
+    {
+      "enrollment_id": "30fb15de-8023-41ee-a1dc-16877cf93e35",
+      "routing_revision": 1
+    },
+    {
+      "enrollment_id": "ac28fa78-5a0b-429f-872e-35053a59dcd3",
+      "routing_revision": 1
+    }
+  ]
+}

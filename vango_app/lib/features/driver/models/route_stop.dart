@@ -1,66 +1,56 @@
-enum StopType {
-  pickup,
-  dropoff,
+/// Backend `trip_stops.kind` values.
+enum StopKind { origin, home, school, destination }
+
+/// Backend `record_passenger_event` kinds for the trip lifecycle.
+enum PassengerEventKind {
+  boarded('boarded'),
+  absent('absent'),
+  droppedOff('dropped_off');
+
+  const PassengerEventKind(this.backend);
+
+  /// Exact backend string sent in the RPC payload.
+  final String backend;
 }
 
-enum StopStatus {
-  pending,
-  boarded,
-  completed,
-  absent,
-}
+/// Operational state of a stop.
+///
+/// Home stops mirror the passenger `operation_status`; origin, school and
+/// destination stops only know whether the van reached them (`reached_at`).
+enum StopStatus { pending, boarded, droppedOff, absent, reached }
 
+/// A persisted trip stop from the authorized `get_trip` projection.
 class RouteStop {
   const RouteStop({
     required this.id,
+    required this.kind,
+    required this.position,
     required this.name,
     required this.address,
-    required this.scheduledTime,
-    required this.latitude,
-    required this.longitude,
-    required this.type,
+    this.latitude,
+    this.longitude,
+    this.studentId,
     this.status = StopStatus.pending,
-    this.notes,
   });
 
   final String id;
+  final StopKind kind;
+
+  /// Backend ordering key; stops are always shown in ascending position.
+  final int position;
   final String name;
   final String address;
-  final String scheduledTime;
-  final double latitude;
-  final double longitude;
-  final StopType type;
+
+  /// Schools may be registered without coordinates, so both are optional.
+  final double? latitude;
+  final double? longitude;
+  final String? studentId;
   final StopStatus status;
-  final String? notes;
 
-  bool get isCompleted =>
-      status == StopStatus.boarded ||
-      status == StopStatus.completed ||
-      status == StopStatus.absent;
+  bool get hasCoordinates => latitude != null && longitude != null;
 
-  bool get isSchoolDestination => type == StopType.dropoff;
+  bool get isCompleted => status != StopStatus.pending;
 
-  RouteStop copyWith({
-    String? id,
-    String? name,
-    String? address,
-    String? scheduledTime,
-    double? latitude,
-    double? longitude,
-    StopType? type,
-    StopStatus? status,
-    String? notes,
-  }) {
-    return RouteStop(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      address: address ?? this.address,
-      scheduledTime: scheduledTime ?? this.scheduledTime,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
-      type: type ?? this.type,
-      status: status ?? this.status,
-      notes: notes ?? this.notes,
-    );
-  }
+  bool get isSchoolDestination =>
+      kind == StopKind.school || kind == StopKind.destination;
 }

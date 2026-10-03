@@ -10,8 +10,12 @@ import '../../features/auth/widgets/auth_gate.dart';
 
 import '../../features/driver/screens/driver_route_screen.dart';
 import '../../features/fleet/screens/fleet_owner_dashboard_screen.dart';
+import '../../features/fleet/screens/fleet_planning_screen.dart';
 import '../../features/student/screens/student_registration_screen.dart';
 import '../../features/student/screens/vans_marketplace_screen.dart';
+
+/// Navigation identifiers for an owner fleet and the opening session.
+typedef OwnerFleetRouteArguments = ({String fleetId, String userId});
 
 /// Named routes for the VanGo application.
 class AppRoutes {
@@ -27,6 +31,7 @@ class AppRoutes {
   static const String studentRegister = '/student-register';
   static const String vansMarketplace = '/vans-marketplace';
   static const String fleetDashboard = '/fleet-dashboard';
+  static const String fleetPlanning = '/fleet-planning';
 
   static Map<String, WidgetBuilder> routes({AuthService? authService}) => {
     welcome: (_) => const WelcomeScreen(),
@@ -37,9 +42,44 @@ class AppRoutes {
         ResetPasswordScreen(authService: authService ?? SupabaseAuthService()),
     authenticatedHome: (_) =>
         AuthGate(authService: authService ?? SupabaseAuthService()),
-    driverRoute: (_) => const DriverRouteScreen(),
+    driverRoute: (context) {
+      final tripId = ModalRoute.of(context)?.settings.arguments;
+      if (tripId is! String || tripId.trim().isEmpty) {
+        return const Scaffold(body: Center(child: Text('Viagem indisponível')));
+      }
+      return DriverRouteScreen(tripId: tripId);
+    },
     studentRegister: (_) => const StudentRegistrationScreen(),
     vansMarketplace: (_) => const VansMarketplaceScreen(),
-    fleetDashboard: (_) => const FleetOwnerDashboardScreen(),
+    fleetPlanning: (context) {
+      final arguments = ModalRoute.of(context)?.settings.arguments;
+      if (arguments is! OwnerFleetRouteArguments ||
+          arguments.fleetId.trim().isEmpty ||
+          arguments.userId.trim().isEmpty) {
+        return const Scaffold(
+          body: Center(child: Text('Acesso à frota indisponível')),
+        );
+      }
+      return FleetPlanningScreen(
+        fleetId: arguments.fleetId,
+        userId: arguments.userId,
+        authService: authService ?? SupabaseAuthService(),
+      );
+    },
+    fleetDashboard: (context) {
+      final arguments = ModalRoute.of(context)?.settings.arguments;
+      if (arguments is! OwnerFleetRouteArguments ||
+          arguments.fleetId.trim().isEmpty ||
+          arguments.userId.trim().isEmpty) {
+        return const Scaffold(
+          body: Center(child: Text('Acesso à frota indisponível')),
+        );
+      }
+      return FleetOwnerDashboardScreen(
+        fleetId: arguments.fleetId,
+        userId: arguments.userId,
+        authService: authService ?? SupabaseAuthService(),
+      );
+    },
   };
 }

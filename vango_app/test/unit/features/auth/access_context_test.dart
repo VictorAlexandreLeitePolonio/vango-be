@@ -4,6 +4,35 @@ import 'package:vango_app/features/auth/models/access_context.dart';
 import 'package:vango_app/features/auth/models/onboarding_intent.dart';
 
 void main() {
+  test('ownerFleetIds filters, deduplicates, and sorts fleet access', () {
+    const context = AccessContext(
+      onboardingIntent: null,
+      accountRoles: {AccountRole.owner},
+      dependentStudentIds: [],
+      adultStudentId: null,
+      fleetAccess: [
+        FleetAccess(fleetId: 'fleet-c', roles: {AccountRole.owner}),
+        FleetAccess(fleetId: 'fleet-a', roles: {AccountRole.driver}),
+        FleetAccess(fleetId: 'fleet-b', roles: {AccountRole.owner}),
+        FleetAccess(fleetId: 'fleet-b', roles: {AccountRole.owner}),
+      ],
+    );
+
+    expect(context.ownerFleetIds, ['fleet-b', 'fleet-c']);
+  });
+
+  test('owner account role alone grants no owner fleet', () {
+    const context = AccessContext(
+      onboardingIntent: null,
+      accountRoles: {AccountRole.owner},
+      dependentStudentIds: [],
+      adultStudentId: null,
+      fleetAccess: [],
+    );
+
+    expect(context.ownerFleetIds, isEmpty);
+  });
+
   test('parses roles, dependents, adult student, and fleet access', () {
     final context = AccessContext.fromJson({
       'onboarding_intent': 'guardian',

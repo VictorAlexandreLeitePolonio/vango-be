@@ -5,14 +5,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/vango_button.dart';
 import '../models/student_models.dart';
+import '../services/student_error_mapper.dart';
 import '../services/student_service.dart';
 import '../widgets/join_request_dialog.dart';
 
 class VansMarketplaceScreen extends StatefulWidget {
-  const VansMarketplaceScreen({
-    super.key,
-    this.studentService,
-  });
+  const VansMarketplaceScreen({super.key, this.studentService});
 
   final StudentService? studentService;
 
@@ -26,6 +24,9 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
   List<StudentProfile> _students = [];
   bool _isLoading = true;
 
+  /// pt-BR message shown instead of the list when loading fails.
+  String? _errorMessage;
+
   @override
   void initState() {
     super.initState();
@@ -33,23 +34,40 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
     _loadData();
   }
 
+  /// Loads vans and the guardian's students; failures switch the screen to
+  /// an error state with retry instead of showing stale or invented data.
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    final vans = await _studentService.getAvailableVans();
-    final students = await _studentService.getMyStudents();
-    if (!mounted) return;
     setState(() {
-      _vans = vans;
-      _students = students;
-      _isLoading = false;
+      _isLoading = true;
+      _errorMessage = null;
     });
+    try {
+      final vans = await _studentService.getAvailableVans();
+      final students = await _studentService.getMyStudents();
+      if (!mounted) return;
+      setState(() {
+        _vans = vans;
+        _students = students;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _vans = [];
+        _students = [];
+        _errorMessage = StudentErrorMapper.message(e);
+        _isLoading = false;
+      });
+    }
   }
 
   void _openJoinModal(AvailableVanFleet van) async {
     if (_students.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Cadastre um aluno antes de solicitar vaga na van.'),
+          content: const Text(
+            'Cadastre um aluno antes de solicitar vaga na van.',
+          ),
           backgroundColor: AppColors.primaryOrangeDark,
           action: SnackBarAction(
             label: 'Cadastrar',
@@ -106,6 +124,8 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.primaryOrange),
             )
+          : _errorMessage != null
+          ? _buildErrorState(_errorMessage!)
           : SafeArea(
               child: ListView(
                 padding: const EdgeInsets.all(20),
@@ -142,10 +162,7 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  Text(
-                    'Vans Ativas em São Paulo',
-                    style: AppTextStyles.heading3,
-                  ),
+                  Text('Vans Ativas', style: AppTextStyles.heading3),
                   const SizedBox(height: 12),
 
                   if (_vans.isEmpty)
@@ -160,6 +177,31 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildErrorState(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              size: 40,
+              color: AppColors.textMuted,
+            ),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: _loadData,
+              child: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -192,7 +234,9 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                          color: AppColors.primaryOrange.withValues(
+                            alpha: 0.12,
+                          ),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: const Icon(
@@ -208,7 +252,9 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
                           children: [
                             Text(
                               van.vanPublicName,
-                              style: AppTextStyles.heading3.copyWith(fontSize: 18),
+                              style: AppTextStyles.heading3.copyWith(
+                                fontSize: 18,
+                              ),
                             ),
                             Text(
                               '${van.vanModel} • Placa ${van.vanPlate}',
@@ -224,7 +270,10 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.successGreen.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
@@ -247,18 +296,30 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
             // Frota e Escola
             Row(
               children: [
-                const Icon(Icons.business_outlined, size: 16, color: AppColors.textMuted),
+                const Icon(
+                  Icons.business_outlined,
+                  size: 16,
+                  color: AppColors.textMuted,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'Frota: ${van.fleetName}',
-                  style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600),
+                  style: AppTextStyles.bodySmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const Spacer(),
-                const Icon(Icons.airline_seat_recline_normal_rounded, size: 16, color: AppColors.textMuted),
+                const Icon(
+                  Icons.airline_seat_recline_normal_rounded,
+                  size: 16,
+                  color: AppColors.textMuted,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   '${van.capacity} lugares',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -266,7 +327,11 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
 
             Row(
               children: [
-                const Icon(Icons.school_outlined, size: 16, color: AppColors.primaryOrangeDark),
+                const Icon(
+                  Icons.school_outlined,
+                  size: 16,
+                  color: AppColors.primaryOrangeDark,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
