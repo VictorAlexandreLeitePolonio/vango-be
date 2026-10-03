@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:vango_app/features/driver/models/route_stop.dart';
 import 'package:vango_app/features/driver/services/driver_location_service.dart';
@@ -37,7 +40,7 @@ void main() {
   test(
     'simulation mode emits telemetry updates and detects proximity to stop',
     () async {
-      final service = DriverLocationService();
+      final service = DriverLocationService(allowSimulation: true);
 
       const stop1 = RouteStop(
         id: 'stop-01',
@@ -85,6 +88,7 @@ void main() {
       expect(updates.length, greaterThanOrEqualTo(2));
       expect(updates.first.position, routePoints.first);
       expect(updates.first.speedKmh, 35.0);
+      expect(updates.every((u) => u.isSimulated), isTrue);
 
       // Check that point 1 triggered proximity (< 50m) to stop1
       final nearStopUpdate = updates.firstWhere((u) => u.isApproachingStop);
@@ -92,4 +96,134 @@ void main() {
       expect(nearStopUpdate.distanceToNextStopMeters, lessThan(50.0));
     },
   );
+
+  group('device GPS', () {
+    const route = [LatLng(-23.57, -46.675), LatLng(-23.5745, -46.6405)];
+
+    test('denied permission never falls back to simulation', () async {
+      final geo = FakeGeolocator(permission: LocationPermission.denied);
+      final service = DriverLocationService(geolocator: geo);
+      final updates = <VanTelemetryUpdate>[];
+      final sub = service.telemetryStream.listen(updates.add);
+
+      final result = await service.startTracking(routePoints: route);
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+
+      expect(result, GpsAvailability.denied);
+      expect(service.availability.value, GpsAvailability.denied);
+      expect(service.isTracking, isFalse);
+      expect(service.mode, LocationTrackingMode.deviceGps);
+      expect(updates, isEmpty);
+      await sub.cancel();
+      service.dispose();
+    });
+
+    test('reports disabled services and permanent denial', () async {
+      final off = DriverLocationService(
+        geolocator: FakeGeolocator(serviceEnabled: false),
+      );
+      expect(
+        await off.startTracking(routePoints: route),
+        GpsAvailability.serviceDisabled,
+      );
+      final forever = DriverLocationService(
+        geolocator: FakeGeolocator(
+          permission: LocationPermission.deniedForever,
+        ),
+      );
+      expect(
+        await forever.startTracking(routePoints: route),
+        GpsAvailability.deniedForever,
+      );
+      off.dispose();
+      forever.dispose();
+    });
+
+    test('simulation is refused unless explicitly allowed', () async {
+      final service = DriverLocationService(geolocator: FakeGeolocator());
+
+      expect(service.allowSimulation, isFalse);
+      expect(
+        () => service.startTracking(
+          routePoints: route,
+          mode: LocationTrackingMode.simulation,
+        ),
+        throwsStateError,
+      );
+      service.dispose();
+    });
+
+    test('real fixes emit non-simulated samples with capture data', () async {
+      final geo = FakeGeolocator();
+      final service = DriverLocationService(geolocator: geo);
+      final updates = <VanTelemetryUpdate>[];
+      final sub = service.telemetryStream.listen(updates.add);
+
+      expect(
+        await service.startTracking(routePoints: route),
+        GpsAvailability.available,
+      );
+      final fixAt = DateTime.utc(2026, 10, 5, 9, 0, 3);
+      geo.positions.add(position(fixAt));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(service.isTracking, isTrue);
+      expect(updates.single.isSimulated, isFalse);
+      expect(updates.single.timestamp, fixAt);
+      expect(updates.single.accuracyMeters, 6);
+      await sub.cancel();
+      service.dispose();
+    });
+
+    test('a GPS stream error is reported as unavailable', () async {
+      final geo = FakeGeolocator();
+      final service = DriverLocationService(geolocator: geo);
+      await service.startTracking(routePoints: route);
+
+      geo.positions.addError(Exception('sensor'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(service.availability.value, GpsAvailability.error);
+      expect(service.isTracking, isFalse);
+      service.dispose();
+    });
+  });
+}
+
+Position position(DateTime at) => Position(
+  latitude: -23.56,
+  longitude: -46.66,
+  timestamp: at,
+  accuracy: 6,
+  altitude: 0,
+  altitudeAccuracy: 0,
+  heading: 45,
+  headingAccuracy: 0,
+  speed: 10,
+  speedAccuracy: 0,
+);
+
+/// In-memory geolocator: fixed permission state and a controllable stream.
+class FakeGeolocator extends GeolocatorPlatform {
+  FakeGeolocator({
+    this.serviceEnabled = true,
+    this.permission = LocationPermission.whileInUse,
+  });
+
+  final bool serviceEnabled;
+  final LocationPermission permission;
+  final positions = StreamController<Position>.broadcast();
+
+  @override
+  Future<bool> isLocationServiceEnabled() async => serviceEnabled;
+
+  @override
+  Future<LocationPermission> checkPermission() async => permission;
+
+  @override
+  Future<LocationPermission> requestPermission() async => permission;
+
+  @override
+  Stream<Position> getPositionStream({LocationSettings? locationSettings}) =>
+      positions.stream;
 }

@@ -361,4 +361,54 @@ void main() {
       expect(getTripCalls, 0);
     });
   });
+
+  group('ingestTripLocations', () {
+    test('posts the batch to ingest_trip_locations unchanged', () async {
+      Map<String, dynamic>? body;
+      final client = await planningClient((request) async {
+        expect(request.url.path, endsWith('/rpc/ingest_trip_locations'));
+        body = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({'accepted': 1}),
+          200,
+          headers: {'content-type': 'application/json'},
+          request: request,
+        );
+      });
+      final params = {
+        'p_trip_id': 'trip-1',
+        'p_assignment_id': 'asg-1',
+        'p_points': <Object>[],
+        'p_live': true,
+      };
+
+      await DriverRouteService(client: client).ingestTripLocations(params);
+
+      expect(body, params);
+      client.dispose();
+    });
+
+    test('surfaces backend codes as PostgrestException', () async {
+      final client = await planningClient(
+        (request) async => http.Response(
+          jsonEncode({'code': 'rate_limited', 'message': 'GPS'}),
+          429,
+          headers: {'content-type': 'application/json'},
+          request: request,
+        ),
+      );
+
+      await expectLater(
+        DriverRouteService(client: client).ingestTripLocations({}),
+        throwsA(
+          isA<PostgrestException>().having(
+            (e) => e.code,
+            'code',
+            'rate_limited',
+          ),
+        ),
+      );
+      client.dispose();
+    });
+  });
 }

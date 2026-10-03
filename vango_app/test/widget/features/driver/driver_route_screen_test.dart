@@ -8,11 +8,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:vango_app/features/driver/models/route_stop.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:vango_app/features/driver/screens/driver_route_screen.dart';
 import 'package:vango_app/features/driver/services/driver_location_service.dart';
 import 'package:vango_app/features/driver/services/driver_route_service.dart';
 import 'package:vango_app/features/driver/services/mapbox_directions_service.dart';
+import 'package:vango_app/features/driver/services/trip_telemetry_uploader.dart';
 
+import '../../../unit/features/driver/driver_location_service_test.dart'
+    show FakeGeolocator, position;
 import '../../../unit/features/driver/driver_trip_test.dart'
     show tripProjection;
 import '../../../unit/features/fleet/fleet_planning_service_test.dart'
@@ -34,21 +38,31 @@ class StubDirectionsService extends MapboxDirectionsService {
 }
 
 class CountingLocationService extends DriverLocationService {
+  CountingLocationService() : super(geolocator: FakeGeolocator());
+
   int startCalls = 0;
   int stopCalls = 0;
+  bool _tracking = false;
 
   @override
-  Future<void> startTracking({
+  bool get isTracking => _tracking;
+
+  @override
+  Future<GpsAvailability> startTracking({
     required List<LatLng> routePoints,
     List<RouteStop> pendingStops = const [],
-    LocationTrackingMode mode = LocationTrackingMode.simulation,
+    LocationTrackingMode mode = LocationTrackingMode.deviceGps,
   }) async {
     startCalls++;
+    _tracking = true;
+    return GpsAvailability.available;
   }
 
+  /// Counts only real stops (tracking -> idle), not idempotent no-ops.
   @override
   void stopTracking() {
-    stopCalls++;
+    if (_tracking) stopCalls++;
+    _tracking = false;
   }
 }
 
@@ -243,6 +257,8 @@ Future<RouteScreenHarness> pumpRouteScreen(
   Map<String, dynamic>? projection,
   int status = 200,
   RouteScreenHarness? harness,
+  DriverLocationService? locationService,
+  TripTelemetryUploader? uploader,
 }) async {
   tester.view.physicalSize = const Size(1080, 1920);
   tester.view.devicePixelRatio = 1.0;
@@ -268,7 +284,8 @@ Future<RouteScreenHarness> pumpRouteScreen(
           client: client,
           directionsService: StubDirectionsService(),
         ),
-        locationService: h.location,
+        locationService: locationService ?? h.location,
+        telemetryUploader: uploader,
       ),
     ),
   );
@@ -791,7 +808,8 @@ void main() {
       expect(find.text('Viagem finalizada.'), findsOneWidget);
       expect(find.text('Viagem Concluída'), findsOneWidget);
       expect(harness.location.stopCalls, 1);
-      expect(harness.location.startCalls, 0);
+      // Reopening the active trip resumed tracking once (task 22).
+      expect(harness.location.startCalls, 1);
     },
   );
 
@@ -894,14 +912,131 @@ void main() {
     expect(find.text('Tentar novamente'), findsOneWidget);
   });
 
-  testWidgets('GPS status pill toggles between Simulation and GPS Real', (
-    tester,
-  ) async {
-    await pumpRouteScreen(tester);
+  group('GPS telemetry', () {
+    final startedAt = DateTime.now().toUtc().subtract(
+      const Duration(minutes: 1),
+    );
+    Map<String, dynamic> activeTrip({
+      String status = 'active',
+      String operation = 'waiting',
+    }) => tripProjection(
+      driverUserId: testId,
+      status: status,
+      passengers: [passengerRow('student-1', operation)],
+      startedAt: startedAt.toIso8601String(),
+      assignments: [
+        {'id': 'asg-1', 'driver_user_id': testId, 'valid_until': null},
+      ],
+    );
 
-    expect(find.text('Modo: Simulação'), findsOneWidget);
-    await tester.tap(find.text('Alternar'));
-    await tester.pumpAndSettle();
-    expect(find.text('Modo: GPS Real'), findsOneWidget);
+    testWidgets('simulation toggle is hidden in regular builds', (
+      tester,
+    ) async {
+      await pumpRouteScreen(tester);
+
+      expect(find.text('Alternar'), findsNothing);
+      expect(find.text('Modo: GPS Real'), findsOneWidget);
+    });
+
+    testWidgets('demo builds can switch to the labeled simulation', (
+      tester,
+    ) async {
+      await pumpRouteScreen(
+        tester,
+        locationService: DriverLocationService(
+          geolocator: FakeGeolocator(),
+          allowSimulation: true,
+        ),
+      );
+
+      await tester.tap(find.text('Alternar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Modo: Simulação (demo)'), findsOneWidget);
+    });
+
+    testWidgets('denied permission shows the banner and never GPS Ativo', (
+      tester,
+    ) async {
+      await pumpRouteScreen(
+        tester,
+        projection: activeTrip(),
+        locationService: DriverLocationService(
+          geolocator: FakeGeolocator(permission: LocationPermission.denied),
+        ),
+      );
+
+      expect(find.text('GPS inativo: permissão negada'), findsOneWidget);
+      expect(find.text('Ativar GPS'), findsOneWidget);
+      expect(find.textContaining('GPS Ativo'), findsNothing);
+      // Operation is not blocked by a missing GPS.
+      expect(find.text('Confirmar Embarque'), findsOneWidget);
+    });
+
+    testWidgets('opening an active trip streams real fixes to the backend', (
+      tester,
+    ) async {
+      final geo = FakeGeolocator();
+      final sent = <Map<String, dynamic>>[];
+      final uploader = TripTelemetryUploader(send: (p) async => sent.add(p));
+      await pumpRouteScreen(
+        tester,
+        projection: activeTrip(),
+        locationService: DriverLocationService(geolocator: geo),
+        uploader: uploader,
+      );
+
+      expect(find.textContaining('GPS Ativo'), findsNothing);
+      geo.positions.add(position(DateTime.now().toUtc()));
+      await tester.pump();
+      await tester.runAsync(uploader.flush);
+      await tester.pump();
+
+      expect(find.textContaining('GPS Ativo'), findsOneWidget);
+      expect(sent.single['p_trip_id'], 'trip-1');
+      expect(sent.single['p_assignment_id'], 'asg-1');
+      expect(sent.single['p_live'], isTrue);
+      expect(sent.single['p_points'], hasLength(1));
+    });
+
+    testWidgets('finishing the trip stops GPS and uploads', (tester) async {
+      final geo = FakeGeolocator();
+      final uploader = TripTelemetryUploader(send: (_) async {});
+      final harness = RouteScreenHarness()
+        ..when('finish_trip', [FakeRpcResponse.ok('completed')])
+        ..when('get_trip', [
+          FakeRpcResponse.ok(activeTrip(operation: 'dropped_off')),
+          FakeRpcResponse.ok(
+            activeTrip(status: 'completed', operation: 'dropped_off'),
+          ),
+        ]);
+      await pumpRouteScreen(
+        tester,
+        harness: harness,
+        locationService: DriverLocationService(geolocator: geo),
+        uploader: uploader,
+      );
+      expect(geo.positions.hasListener, isTrue);
+      expect(uploader.isActive, isTrue);
+
+      await tester.tap(find.text('Finalizar viagem'));
+      await settleCommands(tester);
+
+      expect(find.text('Viagem Concluída'), findsOneWidget);
+      expect(geo.positions.hasListener, isFalse);
+      expect(uploader.isActive, isFalse);
+      expect(uploader.state.value, TelemetrySyncState.idle);
+    });
+
+    testWidgets('completed trips never start GPS', (tester) async {
+      final geo = FakeGeolocator();
+      await pumpRouteScreen(
+        tester,
+        projection: activeTrip(status: 'completed'),
+        locationService: DriverLocationService(geolocator: geo),
+      );
+
+      expect(geo.positions.hasListener, isFalse);
+      expect(find.textContaining('GPS inativo'), findsNothing);
+    });
   });
 }

@@ -14,9 +14,10 @@ The VanGo mobile client for school and university transport logistics. Built wit
 - **Outbound/return action flow:** outbound marks home stops "Embarcou"/"Ausente", then "Confirmar chegada na escola" drops off every boarded student before finishing; return starts at the school ("Embarcar presentes" boards waiting students, with per-student "Ausente" while the school is not reached), then each home stop marks "Desembarcou" before finishing.
 - **Retry semantics:** a definitive backend rejection drops the pending command id and shows a mapped pt-BR message; an uncertain outcome (timeout/5xx/unknown) reloads `get_trip` — if the action already applied, the pending id is dropped, otherwise the snackbar offers "Tentar novamente", which reuses the SAME command id. New user actions always mint a new command id.
 - **Mapbox Vector Map & Routing:** High-resolution map tiles with traffic polyline rendering powered by Mapbox Directions API.
-- **Dual Location Tracking Modes (`DriverLocationService`):**
-  - **GPS Real (`geolocator`):** Reads native hardware GPS sensors on mobile devices with foreground service support.
-  - **Virtual Simulation:** Smoothly traverses the polyline at ~35 km/h with live calculation of speed, progress, and bearing. Allows end-to-end testing on web, emulators, and desktop.
+- **Real GPS telemetry (Task #22):** while a trip is `active` and the signed-in user holds its open assignment, `DriverLocationService` reads the device GPS and `TripTelemetryUploader` sends live batches to `ingest_trip_locations` (every 5 s or 20 points; `sequence` = ms since `trip.started_at`; points older than 25 s are dropped because the backend rejects live points older than 30 s; rate-limit/network failures are retried, a refused trip stops uploads). Tracking also resumes when an active trip is reopened and stops when it completes. There is no offline buffer yet.
+  - **No silent fallback:** a disabled service, denied permission or sensor error shows `GPS inativo: <motivo>` with **"Ativar GPS"**; the trip stays operable and nothing is uploaded. The pill shows `GPS Ativo` only after real fixes arrive.
+  - **Demo simulation (opt-in):** only builds with `--dart-define=VANGO_ALLOW_SIMULATION=true` show the **"Alternar"** toggle; simulated samples are labeled `Simulação (demo)` and are never uploaded.
+  - **Privacy:** location coordinates, Mapbox request URLs and response bodies are never logged.
 - **Azimuth & Heading Calculation:** Van marker dynamically rotates via spherical trigonometry (`atan2`) to point in the exact travel direction of the road.
 - **Intelligent Proximity Detection:** Calculates geodesic Haversine distance in real time. When the vehicle is within 50 meters of a student's pickup point, a floating banner alerts the driver with a quick action to register boarding.
 
@@ -72,7 +73,11 @@ MAPBOX_ACCESS_TOKEN=your_mapbox_public_token
    ```bash
    flutter run -d edge --dart-define-from-file=.env
    ```
-2. In the driver screen, the virtual simulation mode will step through the route coordinates automatically.
+   Add `--dart-define=VANGO_ALLOW_SIMULATION=true` to enable the demo simulation:
+   ```bash
+   flutter run -d edge --dart-define-from-file=.env --dart-define=VANGO_ALLOW_SIMULATION=true
+   ```
+2. In the driver screen, tap **"Alternar"** to select `Simulação (demo)` before starting; it steps through the route coordinates and never sends telemetry.
 
 ---
 
@@ -83,6 +88,9 @@ MAPBOX_ACCESS_TOKEN=your_mapbox_public_token
 - `ACCESS_COARSE_LOCATION`
 - `FOREGROUND_SERVICE`
 - `FOREGROUND_SERVICE_LOCATION`
+
+### iOS (`ios/Runner/Info.plist`)
+- `NSLocationWhenInUseUsageDescription` (pt-BR prompt shown when the driver starts tracking)
 
 ---
 

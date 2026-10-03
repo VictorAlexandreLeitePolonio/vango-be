@@ -73,6 +73,12 @@ class DriverRouteService {
     return trip;
   }
 
+  /// Sends one live GPS batch (`p_trip_id`, `p_assignment_id`, `p_points`,
+  /// `p_live`) to `ingest_trip_locations`; backend codes surface as
+  /// [PostgrestException]. Used by `TripTelemetryUploader`.
+  Future<void> ingestTripLocations(Map<String, dynamic> params) =>
+      _client.rpc('ingest_trip_locations', params: params);
+
   /// Calculates route geometry and duration via Mapbox for the loaded trip,
   /// through the stops that have coordinates, in backend order.
   Future<DriverTrip> calculateAndOptimizeRoute({

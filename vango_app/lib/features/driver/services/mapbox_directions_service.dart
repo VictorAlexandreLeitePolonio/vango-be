@@ -69,7 +69,6 @@ class MapboxDirectionsService {
     );
 
     debugPrint('[MapboxDirections] 🌐 Disparando requisição real para Mapbox Directions API...');
-    debugPrint('[MapboxDirections] 🔗 URL: https://api.mapbox.com/directions/v5/mapbox/driving/$coordsParam?...');
 
     try {
       final response = await _client.get(uri).timeout(const Duration(seconds: 8));
@@ -117,10 +116,12 @@ class MapboxDirectionsService {
           return result;
         }
       } else {
-        debugPrint('[MapboxDirections] ⚠️ API do Mapbox retornou status diferente de 200: ${response.statusCode} - ${response.body}');
+        // Status only: the body and URL echo stop coordinates (home addresses).
+        debugPrint('[MapboxDirections] ⚠️ API do Mapbox retornou status diferente de 200: ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('[MapboxDirections] ❌ Exceção na requisição do Mapbox: $e');
+      // Type only: client exceptions embed the request URI (coordinates, token).
+      debugPrint('[MapboxDirections] ❌ Exceção na requisição do Mapbox: ${e.runtimeType}');
     }
 
     debugPrint('[MapboxDirections] 🔄 Ativando fallback de traçado seguro.');

@@ -10,6 +10,8 @@ Map<String, dynamic> tripProjection({
   String plannedStartAt = '2026-10-05T09:30:00+00:00',
   List<Map<String, dynamic>>? passengers,
   List<Map<String, dynamic>>? stops,
+  String? startedAt,
+  List<Map<String, dynamic>> assignments = const [],
 }) => {
   'trip': {
     'id': id,
@@ -21,7 +23,9 @@ Map<String, dynamic> tripProjection({
     'route_name': 'Rota Manhã',
     'van_plate': 'ABC1D23',
     'van_public_name': 'Van Azul',
+    'started_at': startedAt,
   },
+  'assignments': assignments,
   'passengers':
       passengers ??
       [
@@ -451,5 +455,50 @@ void main() {
         isFalse,
       );
     });
+  });
+
+  group('telemetry identity', () {
+    test('parses started_at only when the trip has started', () {
+      expect(DriverTrip.fromProjection(tripProjection()).startedAt, isNull);
+      final started = DriverTrip.fromProjection(
+        tripProjection(
+          status: 'active',
+          startedAt: '2026-10-05T09:35:00.123+00:00',
+        ),
+      );
+      expect(started.startedAt, DateTime.utc(2026, 10, 5, 9, 35, 0, 123));
+    });
+
+    test(
+      'currentAssignmentIdFor returns the open assignment of the driver',
+      () {
+        final trip = DriverTrip.fromProjection(
+          tripProjection(
+            assignments: [
+              {
+                'id': 'a-old',
+                'driver_user_id': 'driver-1',
+                'valid_until': '2026-10-05T09:00:00+00:00',
+              },
+              {
+                'id': 'a-other',
+                'driver_user_id': 'driver-2',
+                'valid_until': null,
+              },
+              {
+                'id': 'a-open',
+                'driver_user_id': 'driver-1',
+                'valid_until': null,
+              },
+            ],
+          ),
+        );
+
+        expect(trip.currentAssignmentIdFor('driver-1'), 'a-open');
+        expect(trip.currentAssignmentIdFor('driver-2'), 'a-other');
+        expect(trip.currentAssignmentIdFor('driver-3'), isNull);
+        expect(trip.currentAssignmentIdFor(null), isNull);
+      },
+    );
   });
 }

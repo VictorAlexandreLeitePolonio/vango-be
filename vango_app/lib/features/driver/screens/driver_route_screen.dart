@@ -11,6 +11,7 @@ import '../models/trip_command_ledger.dart';
 import '../services/driver_location_service.dart';
 import '../services/driver_route_service.dart';
 import '../services/trip_command_error_mapper.dart';
+import '../services/trip_telemetry_uploader.dart';
 import '../widgets/driver_active_trip_panel.dart';
 import '../widgets/mapbox_route_map.dart';
 
@@ -23,6 +24,7 @@ class DriverRouteScreen extends StatefulWidget {
     required this.tripId,
     this.routeService,
     this.locationService,
+    this.telemetryUploader,
   });
 
   /// Persisted trip to load through the authorized `get_trip` projection.
@@ -34,6 +36,10 @@ class DriverRouteScreen extends StatefulWidget {
   /// Optional injected telemetry and GPS tracking service (defaults to standard instance).
   final DriverLocationService? locationService;
 
+  /// Optional injected GPS uploader (defaults to one sending through
+  /// [routeService]).
+  final TripTelemetryUploader? telemetryUploader;
+
   @override
   State<DriverRouteScreen> createState() => _DriverRouteScreenState();
 }
@@ -41,6 +47,7 @@ class DriverRouteScreen extends StatefulWidget {
 class _DriverRouteScreenState extends State<DriverRouteScreen> {
   late final DriverRouteService _routeService;
   late final DriverLocationService _locationService;
+  late final TripTelemetryUploader _uploader;
   StreamSubscription<VanTelemetryUpdate>? _telemetrySub;
 
   DriverTrip? _trip;
@@ -58,16 +65,27 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
   double _vanHeading = 0.0;
   double _vanSpeedKmh = 0.0;
   RouteStop? _approachingStop;
-  LocationTrackingMode _selectedTrackingMode = LocationTrackingMode.simulation;
+  LocationTrackingMode _selectedTrackingMode = LocationTrackingMode.deviceGps;
+
+  // True once a real (non-simulated) fix arrived in the current tracking
+  // session; the pill only claims "GPS Ativo" after that.
+  bool _hasRealFix = false;
 
   @override
   void initState() {
     super.initState();
     _routeService = widget.routeService ?? DriverRouteService();
     _locationService = widget.locationService ?? DriverLocationService();
+    _uploader =
+        widget.telemetryUploader ??
+        TripTelemetryUploader(send: _routeService.ingestTripLocations);
+    _locationService.availability.addListener(_onTelemetryHealthChanged);
+    _uploader.state.addListener(_onTelemetryHealthChanged);
     _telemetrySub = _locationService.telemetryStream.listen((telemetry) {
       if (!mounted) return;
+      if (!telemetry.isSimulated) _uploader.add(telemetry);
       setState(() {
+        _hasRealFix = _hasRealFix || !telemetry.isSimulated;
         _liveVanPos = telemetry.position;
         _vanHeading = telemetry.headingDegrees;
         _vanSpeedKmh = telemetry.speedKmh;
@@ -80,6 +98,9 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
   @override
   void dispose() {
     _telemetrySub?.cancel();
+    _locationService.availability.removeListener(_onTelemetryHealthChanged);
+    _uploader.state.removeListener(_onTelemetryHealthChanged);
+    _uploader.stop();
     _locationService.dispose();
     super.dispose();
   }
@@ -115,6 +136,62 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
       _trip = trip;
       _isLoading = false;
     });
+    _syncTelemetry();
+  }
+
+  void _onTelemetryHealthChanged() {
+    if (!mounted) return;
+    // The backend refused this trip's telemetry: stop GPS too, so nothing
+    // claims to be live anymore.
+    if (_uploader.state.value == TelemetrySyncState.rejected) {
+      _locationService.stopTracking();
+      _hasRealFix = false;
+    }
+    setState(() {});
+  }
+
+  /// Keeps GPS and uploads in step with the trip: on while it is active and
+  /// operated by the signed-in driver (also when reopening the screen), off
+  /// otherwise.
+  Future<void> _syncTelemetry() async {
+    final trip = _trip;
+    final userId = _routeService.currentUserId;
+    if (trip == null ||
+        trip.status != TripStatus.active ||
+        !trip.isOperableBy(userId)) {
+      _stopTelemetry();
+      return;
+    }
+
+    final assignmentId = trip.currentAssignmentIdFor(userId);
+    final startedAt = trip.startedAt;
+    if (assignmentId != null && startedAt != null && !_uploader.isActive) {
+      _uploader.start(
+        tripId: trip.id,
+        assignmentId: assignmentId,
+        startedAt: startedAt,
+      );
+    }
+    if (_locationService.isTracking) return;
+    _hasRealFix = false;
+    await _locationService.startTracking(
+      routePoints: trip.polylinePoints,
+      pendingStops: trip.pendingStops,
+      mode: _selectedTrackingMode,
+    );
+    if (mounted) setState(() {});
+  }
+
+  void _stopTelemetry() {
+    _locationService.stopTracking();
+    _uploader.stop();
+    _hasRealFix = false;
+  }
+
+  /// "Ativar GPS": opens the OS screen that can fix the failure, then retries.
+  Future<void> _handleEnableGps() async {
+    await _locationService.openGpsSettings();
+    await _syncTelemetry();
   }
 
   /// Runs one logical action; [steps] are (actionKey, command) pairs executed
@@ -251,13 +328,7 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
     } catch (_) {}
     if (!mounted) return;
     if (geometry != null) setState(() => _trip = geometry);
-    if (geometry != null && geometry.polylinePoints.isNotEmpty) {
-      _locationService.startTracking(
-        routePoints: geometry.polylinePoints,
-        pendingStops: geometry.pendingStops,
-        mode: _selectedTrackingMode,
-      );
-    }
+    _syncTelemetry();
   }
 
   Future<void> _handleBoardStop(RouteStop stop) async {
@@ -416,7 +487,8 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
     // Tracking only stops once the backend accepted the finish.
     if (!ok || !mounted) return;
     setState(() => _approachingStop = null);
-    _locationService.stopTracking();
+    // The trip is completed now, so this stops GPS and uploads.
+    _syncTelemetry();
   }
 
   @override
@@ -598,81 +670,16 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                     top: 68,
                     left: 16,
                     right: 16,
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardBackground.withValues(
-                            alpha: 0.95,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: AppColors.shadowLight,
-                              blurRadius: 8,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                          border: Border.all(
-                            color: _locationService.isTracking
-                                ? AppColors.successGreen
-                                : AppColors.inputBorder,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _locationService.isTracking
-                                  ? Icons.satellite_alt_rounded
-                                  : Icons.gps_fixed_rounded,
-                              size: 16,
-                              color: _locationService.isTracking
-                                  ? AppColors.successGreen
-                                  : AppColors.textMuted,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _locationService.isTracking
-                                  ? '${_selectedTrackingMode == LocationTrackingMode.deviceGps ? 'GPS Ativo' : 'Simulação'} • ${_vanSpeedKmh.toStringAsFixed(0)} km/h'
-                                  : 'Modo: ${_selectedTrackingMode == LocationTrackingMode.deviceGps ? 'GPS Real' : 'Simulação'}',
-                              style: AppTextStyles.caption.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: _locationService.isTracking
-                                    ? AppColors.successGreen
-                                    : AppColors.textDark,
-                              ),
-                            ),
-                            if (!_locationService.isTracking) ...[
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedTrackingMode =
-                                        _selectedTrackingMode ==
-                                            LocationTrackingMode.simulation
-                                        ? LocationTrackingMode.deviceGps
-                                        : LocationTrackingMode.simulation;
-                                  });
-                                },
-                                child: Text(
-                                  'Alternar',
-                                  style: AppTextStyles.caption.copyWith(
-                                    color: AppColors.primaryOrangeDark,
-                                    fontWeight: FontWeight.bold,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
+                    child: Center(child: _buildGpsPill()),
                   ),
+
+                  if (isTripActive && _gpsFailureReason != null)
+                    Positioned(
+                      top: 110,
+                      left: 16,
+                      right: 16,
+                      child: _buildGpsBanner(_gpsFailureReason!),
+                    ),
 
                   // Proximity alert banner
                   if (_approachingStop != null)
@@ -903,6 +910,130 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  /// pt-BR reason when real GPS could not start or broke; null while OK.
+  String? get _gpsFailureReason =>
+      switch (_locationService.availability.value) {
+        GpsAvailability.serviceDisabled => 'serviço desativado',
+        GpsAvailability.denied => 'permissão negada',
+        GpsAvailability.deniedForever => 'permissão negada permanentemente',
+        GpsAvailability.error => 'erro no GPS',
+        GpsAvailability.available || null => null,
+      };
+
+  Widget _buildGpsPill() {
+    final tracking = _locationService.isTracking;
+    final simulated =
+        _locationService.mode == LocationTrackingMode.simulation && tracking;
+    final speed = '${_vanSpeedKmh.toStringAsFixed(0)} km/h';
+    // "GPS Ativo" is earned by real fixes on a trip whose uploads were not
+    // refused; until then the pill only says what it is waiting for.
+    final live =
+        tracking &&
+        !simulated &&
+        _hasRealFix &&
+        _uploader.state.value != TelemetrySyncState.rejected;
+    final modeLabel = _selectedTrackingMode == LocationTrackingMode.deviceGps
+        ? 'GPS Real'
+        : 'Simulação (demo)';
+    final label = simulated
+        ? 'Simulação (demo) • $speed'
+        : live
+        ? 'GPS Ativo • $speed'
+        : tracking
+        ? 'Aguardando GPS...'
+        : 'Modo: $modeLabel';
+    final highlight = live || simulated;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadowLight,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+        border: Border.all(
+          color: highlight ? AppColors.successGreen : AppColors.inputBorder,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            highlight ? Icons.satellite_alt_rounded : Icons.gps_fixed_rounded,
+            size: 16,
+            color: highlight ? AppColors.successGreen : AppColors.textMuted,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              fontWeight: FontWeight.bold,
+              color: highlight ? AppColors.successGreen : AppColors.textDark,
+            ),
+          ),
+          // The demo simulation toggle only exists in builds that allow it.
+          if (!tracking && _locationService.allowSimulation) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedTrackingMode =
+                      _selectedTrackingMode == LocationTrackingMode.simulation
+                      ? LocationTrackingMode.deviceGps
+                      : LocationTrackingMode.simulation;
+                });
+              },
+              child: Text(
+                'Alternar',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.primaryOrangeDark,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Non-blocking warning: the trip keeps operating without live location.
+  Widget _buildGpsBanner(String reason) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.errorRed.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.errorRed),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.gps_off_rounded, color: AppColors.errorRed),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'GPS inativo: $reason',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.errorRed,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _handleEnableGps,
+            child: const Text('Ativar GPS'),
+          ),
+        ],
+      ),
     );
   }
 

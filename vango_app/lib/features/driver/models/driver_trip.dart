@@ -34,6 +34,8 @@ class DriverTrip {
     required this.plannedStartAt,
     required this.stops,
     this.status = TripStatus.scheduled,
+    this.startedAt,
+    this.assignments = const [],
     this.polylinePoints = const [],
     this.totalDistanceMeters = 0,
     this.totalDurationSeconds = 0,
@@ -117,6 +119,13 @@ class DriverTrip {
       driverUserId: trip['driver_user_id'] as String?,
       plannedStartAt: DateTime.parse(_string(trip, 'planned_start_at')),
       status: TripStatus.fromBackend(_string(trip, 'status')),
+      startedAt: trip['started_at'] == null
+          ? null
+          : DateTime.parse(trip['started_at'] as String),
+      assignments: [
+        for (final raw in (json['assignments'] as List?) ?? const [])
+          _map(raw, 'assignment'),
+      ],
       stops: stops,
     );
   }
@@ -130,6 +139,12 @@ class DriverTrip {
   final String? driverUserId;
   final DateTime plannedStartAt;
   final TripStatus status;
+
+  /// When the trip went `active`; telemetry sequences are offsets from it.
+  final DateTime? startedAt;
+
+  /// Raw `trip_assignments` rows (`id`, `driver_user_id`, `valid_until`, ...).
+  final List<Map<String, dynamic>> assignments;
   final List<RouteStop> stops;
   final List<LatLng> polylinePoints;
   final double totalDistanceMeters;
@@ -139,6 +154,18 @@ class DriverTrip {
   /// only the assigned driver gets the operate action; the backend enforces it.
   bool isOperableBy(String? userId) =>
       userId != null && userId == driverUserId && !status.isTerminal;
+
+  /// Id of the open assignment (`valid_until == null`) held by [userId], the
+  /// assignment telemetry must be ingested under; null when there is none.
+  String? currentAssignmentIdFor(String? userId) {
+    if (userId == null) return null;
+    for (final a in assignments) {
+      if (a['valid_until'] == null && a['driver_user_id'] == userId) {
+        return a['id'] as String?;
+      }
+    }
+    return null;
+  }
 
   /// Stops that can be drawn on the map and routed through.
   List<RouteStop> get mappableStops =>
@@ -243,6 +270,8 @@ class DriverTrip {
       driverUserId: driverUserId,
       plannedStartAt: plannedStartAt,
       status: status ?? this.status,
+      startedAt: startedAt,
+      assignments: assignments,
       stops: stops ?? this.stops,
       polylinePoints: polylinePoints ?? this.polylinePoints,
       totalDistanceMeters: totalDistanceMeters ?? this.totalDistanceMeters,
