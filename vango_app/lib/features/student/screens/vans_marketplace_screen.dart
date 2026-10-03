@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/vango_button.dart';
 import '../models/student_models.dart';
+import '../services/student_error_mapper.dart';
 import '../services/student_service.dart';
 import '../widgets/join_request_dialog.dart';
 
@@ -23,6 +24,9 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
   List<StudentProfile> _students = [];
   bool _isLoading = true;
 
+  /// pt-BR message shown instead of the list when loading fails.
+  String? _errorMessage;
+
   @override
   void initState() {
     super.initState();
@@ -30,16 +34,31 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
     _loadData();
   }
 
+  /// Loads vans and the guardian's students; failures switch the screen to
+  /// an error state with retry instead of showing stale or invented data.
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    final vans = await _studentService.getAvailableVans();
-    final students = await _studentService.getMyStudents();
-    if (!mounted) return;
     setState(() {
-      _vans = vans;
-      _students = students;
-      _isLoading = false;
+      _isLoading = true;
+      _errorMessage = null;
     });
+    try {
+      final vans = await _studentService.getAvailableVans();
+      final students = await _studentService.getMyStudents();
+      if (!mounted) return;
+      setState(() {
+        _vans = vans;
+        _students = students;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _vans = [];
+        _students = [];
+        _errorMessage = StudentErrorMapper.message(e);
+        _isLoading = false;
+      });
+    }
   }
 
   void _openJoinModal(AvailableVanFleet van) async {
@@ -105,6 +124,8 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.primaryOrange),
             )
+          : _errorMessage != null
+          ? _buildErrorState(_errorMessage!)
           : SafeArea(
               child: ListView(
                 padding: const EdgeInsets.all(20),
@@ -141,10 +162,7 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  Text(
-                    'Vans Ativas em São Paulo',
-                    style: AppTextStyles.heading3,
-                  ),
+                  Text('Vans Ativas', style: AppTextStyles.heading3),
                   const SizedBox(height: 12),
 
                   if (_vans.isEmpty)
@@ -159,6 +177,31 @@ class _VansMarketplaceScreenState extends State<VansMarketplaceScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildErrorState(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              size: 40,
+              color: AppColors.textMuted,
+            ),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: _loadData,
+              child: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

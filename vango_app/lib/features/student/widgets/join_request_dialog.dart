@@ -4,6 +4,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/vango_button.dart';
 import '../models/student_models.dart';
+import '../services/student_error_mapper.dart';
 import '../services/student_service.dart';
 
 class JoinRequestDialog extends StatefulWidget {
@@ -55,7 +56,7 @@ class _JoinRequestDialogState extends State<JoinRequestDialog> {
       setState(() => _isSubmitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erro ao enviar solicitação: $e'),
+          content: Text(StudentErrorMapper.message(e)),
           backgroundColor: AppColors.errorRed,
         ),
       );

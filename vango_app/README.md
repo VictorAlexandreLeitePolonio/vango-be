@@ -24,7 +24,8 @@ The VanGo mobile client for school and university transport logistics. Built wit
 ### 🎓 Student / Guardian Marketplace & Registration
 - **Mapbox Address Autocomplete (`MapboxAddressAutocompleteField`):** Debounced real-time place search suggestions with coordinate extraction for precise student pickup and school locations.
 - **Dependent / Student Registration:** Registration of minor students with home address, target school, period (morning/afternoon), and transport direction (going/return).
-- **Vans Marketplace (`VansMarketplaceScreen`):** Search and discovery of published fleet vans with capacity, license plate, school coverage, and one-tap request submission (`submit_fleet_join_request`).
+- **Vans Marketplace (`VansMarketplaceScreen`):** Search and discovery of published fleet vans with capacity, license plate, school coverage, and one-tap request submission (`submit_fleet_join_request`). Vans are listed once per school served by their fleet (`fleet_service_schools`).
+- **No demo fallbacks:** `StudentService` only returns backend data. Empty results render empty states; backend failures propagate as `PostgrestException` and are shown as pt-BR messages via `StudentErrorMapper` (raw errors are never shown or logged). Tests inject a `StudentDataSource` fake (`test/support/fake_student_data_source.dart`).
 
 ### 🏢 Fleet Owner Dashboard (`FleetOwnerDashboardScreen`)
 - After authentication, owner fleet choices come from the current `get_my_access_context` result. One owner fleet opens directly; multiple owner fleets require an explicit selection by fleet ID; no owner fleet shows an access message.
