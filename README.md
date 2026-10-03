@@ -183,6 +183,14 @@ Specs were approved on 2026-09-07. Implementation plans record contracts and tas
 Run `python3 supabase/tests/run_database_tests.py` in the local Supabase environment. The runner expands `\ir` includes into temporary files, executes the pgTAP test suite, and cleans up temporary files afterwards without affecting remote environments.
 
 
+## Real planning-to-trip cycle (epic #15, tasks #19–#23)
+
+- **#19** activates the `vango-daily-operations` job (migration `20261003114734`), which materializes the local next service day from direct owner allocations.
+- **#20** Flutter "Minhas viagens" and the route screen read persisted trips through `list_service_day` / `get_trip` (route name, van plate and passenger names added by `20261003113739`); there is no fallback trip.
+- **#21** start, boarding, absence, school arrival, drop-off and finish go through the idempotent trip RPCs; fleet-managed students without account or guardian are auto-confirmed (`20261003124659`).
+- **#22** real device GPS of the assigned driver is batched into `ingest_trip_locations`; GPS failures are shown instead of silently simulated, and simulation requires `VANGO_ALLOW_SIMULATION`.
+- **#23** `supabase/tests/database/059_planning_to_trip_e2e.test.sql` exercises the whole cycle through public RPCs, including cross-tenant denial and rejected commands. Recorded results are in [deliverables.md](./deliverables.md); the manual on-device scenario is still pending.
+
 ## Issue 16: Direct fleet-student transport allocation
 
 `assign_fleet_student_transport(p_enrollment_id uuid, p_school_id uuid,
