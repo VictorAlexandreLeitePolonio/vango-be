@@ -124,27 +124,22 @@ class MapboxDirectionsService {
       debugPrint('[MapboxDirections] ❌ Exceção na requisição do Mapbox: ${e.runtimeType}');
     }
 
-    debugPrint('[MapboxDirections] 🔄 Ativando fallback de traçado seguro.');
-    final fallback = DirectionsResult(
-      polylinePoints: coordinates,
-      totalDistanceMeters: _calculateStraightDistance(coordinates),
-      totalDurationSeconds: 20 * 60, // 20 min default
-      isFromCache: false,
-    );
-    _cache[cacheKey] = fallback;
-    return fallback;
+    // No invented straight-line route or fixed duration: callers treat the
+    // geometry as unavailable, and the failure is not cached so a later
+    // refresh retries the API.
+    throw const DirectionsUnavailableException();
   }
 
   static void clearCache() {
     _cache.clear();
   }
 
-  static double _calculateStraightDistance(List<LatLng> points) {
-    const distance = Distance();
-    double total = 0;
-    for (int i = 0; i < points.length - 1; i++) {
-      total += distance.as(LengthUnit.Meter, points[i], points[i + 1]);
-    }
-    return total;
-  }
+}
+
+/// Mapbox Directions could not produce a route (network error or non-200).
+class DirectionsUnavailableException implements Exception {
+  const DirectionsUnavailableException();
+
+  @override
+  String toString() => 'DirectionsUnavailableException';
 }

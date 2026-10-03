@@ -250,6 +250,15 @@ List<Map<String, dynamic>> returnStops({
     },
 ];
 
+/// Directions that always fail, like a missing token or no network.
+class FailingDirectionsService extends MapboxDirectionsService {
+  @override
+  Future<DirectionsResult> getDrivingRoute({
+    required String cacheKey,
+    required List<LatLng> coordinates,
+  }) async => throw const DirectionsUnavailableException();
+}
+
 /// Pumps the route screen against a fake backend that routes by RPC path and
 /// plays queued results; returns the harness for assertions.
 Future<RouteScreenHarness> pumpRouteScreen(
@@ -259,6 +268,7 @@ Future<RouteScreenHarness> pumpRouteScreen(
   RouteScreenHarness? harness,
   DriverLocationService? locationService,
   TripTelemetryUploader? uploader,
+  MapboxDirectionsService? directions,
 }) async {
   tester.view.physicalSize = const Size(1080, 1920);
   tester.view.devicePixelRatio = 1.0;
@@ -282,7 +292,7 @@ Future<RouteScreenHarness> pumpRouteScreen(
         tripId: 'trip-1',
         routeService: DriverRouteService(
           client: client,
-          directionsService: StubDirectionsService(),
+          directionsService: directions ?? StubDirectionsService(),
         ),
         locationService: locationService ?? h.location,
         telemetryUploader: uploader,
@@ -875,6 +885,16 @@ void main() {
 
     expect(find.text('Você não tem acesso a esta viagem.'), findsOneWidget);
     expect(find.text('Começar Percurso'), findsOneWidget);
+  });
+
+  testWidgets('unavailable directions never claim a computed route', (
+    tester,
+  ) async {
+    await pumpRouteScreen(tester, directions: FailingDirectionsService());
+
+    expect(find.text('Ana Souza'), findsOneWidget);
+    expect(find.text('-- km'), findsOneWidget);
+    expect(find.text('Melhor trajeto'), findsNothing);
   });
 
   testWidgets('trips of another driver are read-only', (tester) async {

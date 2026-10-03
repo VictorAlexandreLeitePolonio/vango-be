@@ -638,27 +638,30 @@ class _DriverRouteScreenState extends State<DriverRouteScreen> {
                                 color: AppColors.textDark,
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.successGreen.withValues(
-                                  alpha: 0.15,
+                            // Only a route actually computed by Mapbox earns the badge.
+                            if (trip.totalDistanceMeters > 0) ...[
+                              const SizedBox(width: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
                                 ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'Melhor trajeto',
-                                style: AppTextStyles.caption.copyWith(
-                                  color: AppColors.successGreen,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 10,
+                                decoration: BoxDecoration(
+                                  color: AppColors.successGreen.withValues(
+                                    alpha: 0.15,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Melhor trajeto',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.successGreen,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       ),

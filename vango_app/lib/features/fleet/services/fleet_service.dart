@@ -41,22 +41,6 @@ class FleetMemberDriver {
   final String status;
 }
 
-class EnrolledStudentItem {
-  const EnrolledStudentItem({
-    required this.id,
-    required this.fullName,
-    required this.address,
-    required this.latitude,
-    required this.longitude,
-  });
-
-  final String id;
-  final String fullName;
-  final String address;
-  final double latitude;
-  final double longitude;
-}
-
 /// Owner-visible enrolled student, including the enrollment that receives transport.
 typedef OwnerEnrolledStudent = ({
   String id,
@@ -239,58 +223,6 @@ class FleetService {
         status: 'Ativo',
       );
     }).toList();
-  }
-
-  /// Preserves the driver route's existing fallback for enrolled students.
-  Future<List<EnrolledStudentItem>> getEnrolledStudents(String fleetId) async {
-    if (_client == null || _client.auth.currentUser == null) {
-      return const [
-        EnrolledStudentItem(
-          id: 'stop-01-lucas',
-          fullName: 'Lucas Alencar',
-          address: 'Rua Oscar Freire, 1000 - Cerqueira César, São Paulo',
-          latitude: -23.5615,
-          longitude: -46.6698,
-        ),
-        EnrolledStudentItem(
-          id: 'stop-02-mariana',
-          fullName: 'Mariana Rios',
-          address: 'Alameda Santos, 1800 - Cerqueira César, São Paulo',
-          latitude: -23.5601,
-          longitude: -46.6575,
-        ),
-      ];
-    }
-    try {
-      final rows = await _client
-          .from('fleet_enrollments')
-          .select(
-            'student_id, students(id, full_name, street, street_number, neighborhood, city_name, latitude, longitude)',
-          )
-          .eq('fleet_id', fleetId)
-          .eq('status', 'active');
-      final students = <EnrolledStudentItem>[];
-      for (final row in rows) {
-        final student = row['students'] as Map<String, dynamic>?;
-        if (student == null) continue;
-        final street = student['street'] as String? ?? '';
-        final number = student['street_number'] as String? ?? '';
-        final neighborhood = student['neighborhood'] as String? ?? '';
-        final city = student['city_name'] as String? ?? 'São Paulo';
-        students.add(
-          EnrolledStudentItem(
-            id: student['id'] as String? ?? '',
-            fullName: student['full_name'] as String? ?? '',
-            address: '$street, $number - $neighborhood, $city',
-            latitude: (student['latitude'] as num?)?.toDouble() ?? -23.5615,
-            longitude: (student['longitude'] as num?)?.toDouble() ?? -46.6698,
-          ),
-        );
-      }
-      return students;
-    } catch (_) {
-      return [];
-    }
   }
 
   /// Returns enrolled students to the guarded owner dashboard without fallback.
